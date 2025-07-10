@@ -90,8 +90,6 @@ const MemoWritePage: React.FC<MemoWritePageProps> = ({
     }
   }, [allTags, pendingTagId, setSelectedTags, onSave]);
 
-  // body prop이 바뀔 때마다 innerHTML을 동기화하는 useEffect는 완전히 제거
-
   if (!open) return null;
 
   return (

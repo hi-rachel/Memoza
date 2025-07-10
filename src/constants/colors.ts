@@ -1,10 +1,12 @@
-// Apple Notes 스타일에 어울리는 색상 예시
-export const COLORS = {
-  background: "#F8F9FA",
-  note: "#FFFFFF",
-  border: "#E5E7EB",
-  primary: "#007AFF",
-  secondary: "#8E8E93",
-  highlight: "#FFF475",
-  tag: "#E0E0E0",
-};
+export const PALETTE = [
+  "#FF5252",
+  "#FFD600",
+  "#40C4FF",
+  "#7C4DFF",
+  "#FF4081",
+  "#69F0AE",
+  "#FFB300",
+  "#00B8D4",
+  "#8D6E63",
+  "#BDBDBD",
+];

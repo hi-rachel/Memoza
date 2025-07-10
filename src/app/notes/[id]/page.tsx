@@ -147,8 +147,6 @@ export default function MemoDetail() {
     });
   }
 
-  // handleTagChange, handleCreateTag 등 미사용 함수 완전히 제거
-
   useEffect(() => {
     if (!pendingSelection || !bodyRef.current) return;
     bodyRef.current.focus();

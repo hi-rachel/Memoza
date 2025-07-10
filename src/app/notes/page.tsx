@@ -562,7 +562,6 @@ export default function NotesHome() {
           }}
         />
         <div className="p-4 flex flex-col items-center min-h-screen bg-bg text-text">
-          {/* 상단 LogoutButton 제거됨 */}
           <div className="w-full flex justify-end pt-6 pb-2"></div>
           {/* 입력창 하단에 태그 필터 UI 추가 */}
           {/* 태그 필터 버튼: 전체 → 중요 → 기본 → 나머지 */}
