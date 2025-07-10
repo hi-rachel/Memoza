@@ -1,0 +1,17 @@
+{
+  "rewrites": [
+    { "source": "/service-worker.js", "destination": "/service-worker.js" }
+  ],
+  "headers": [
+    {
+      "source": "/(.*)",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=0, must-revalidate"
+        }
+      ]
+    }
+  ]
+}
+
