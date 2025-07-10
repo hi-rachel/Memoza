@@ -12,7 +12,7 @@ export const metadata: Metadata = {
     title: "Memoza",
     description: "안전하게 생각을 기록하고 관리하는 공간, Memoza.",
     type: "website",
-    url: "https://memoza.vercel.app",
+    url: "https://memo-za.vercel.app",
     images: [
       {
         url: "/memoza.png",
