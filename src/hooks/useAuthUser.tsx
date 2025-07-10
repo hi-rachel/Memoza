@@ -42,5 +42,3 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 export function useAuthUser() {
   return useContext(AuthContext);
 }
-
-// 암호화 관련 함수는 src/lib/crypto.ts로 이동되었습니다. 필요시 import { encryptMemo, decryptMemo, getAesKeyFromPin } from "@/lib/crypto";
