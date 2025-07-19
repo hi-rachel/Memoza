@@ -1,8 +1,8 @@
 "use client";
 
-import type { Tag } from "@/hooks/useTags";
 import { useState, useRef, useEffect } from "react";
 import { FiChevronDown } from "react-icons/fi";
+import { Tag } from "@/types/memo";
 
 interface TagSelectorProps {
   tags: Tag[];

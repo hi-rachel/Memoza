@@ -1,27 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { db } from "@/lib/firebase";
-import {
-  collection,
-  addDoc,
-  getDocs,
-  Timestamp,
-  query,
-  where,
-  deleteDoc,
-  doc,
-  updateDoc,
-  getDoc,
-  orderBy, // 추가
-} from "firebase/firestore";
-import {
-  deriveEncryptionKey,
-  encryptMemoWithKey,
-  decryptMemoWithKey,
-} from "@/lib/crypto";
+import { createClient } from "@/lib/supabase/client";
 import { useAuthUser } from "@/hooks/useAuthUser";
-import { usePin } from "@/hooks/usePin";
 import { useTags } from "@/hooks/useTags";
 import TagSelector from "@/components/tags/TagSelector";
 import TagCreateModal from "@/components/tags/TagCreateModal";
@@ -42,21 +23,17 @@ import MemoWritePage from "@/components/notes/MemoWritePage";
 import AlertModal from "@/components/ui/AlertModal";
 
 interface Memo {
-  cipher: string;
-  iv: string;
-  uid: string;
-  created_at: Timestamp;
-  tags?: string[];
-  title?: string;
-  body?: string;
-  plain?: string;
-  id?: string;
-  star?: boolean; // 추가
+  id: string;
+  title: string;
+  content: string;
+  tags: string[];
+  is_starred: boolean;
+  created_at: string;
+  updated_at: string;
 }
 
 export default function NotesHome() {
   const { user } = useAuthUser();
-  const { pin } = usePin();
   // 입력 상태 분리
   const [title, setTitle] = useState("");
   const [body, setBody] = useState("");
@@ -84,103 +61,54 @@ export default function NotesHome() {
   // 커스텀 alert 상태
   const [alertMsg, setAlertMsg] = useState("");
 
-  // Firestore에서 userSalt 불러오기
-  const [userSalt, setUserSalt] = useState<string | null>(null);
-  useEffect(() => {
-    async function fetchSalt() {
-      if (!user) return;
-      const userRef = doc(db, "users", user.uid);
-      const userSnap = await getDoc(userRef);
-      if (userSnap.exists()) {
-        setUserSalt(userSnap.data().userSalt || null);
-      }
-    }
-    fetchSalt();
-  }, [user]);
-
-  // Firestore에서 암호화된 메모 불러오기 및 복호화 (로그인 사용자별)
-  const fetchMemos = async (pin: string) => {
-    console.log(
-      "[fetchMemos] pin:",
-      !!pin,
-      "user:",
-      !!user,
-      "userSalt:",
-      !!userSalt
-    );
-    if (!user || !userSalt) return;
+  // Supabase에서 메모 불러오기
+  const fetchMemos = async () => {
+    if (!user) return;
     setLoading(true);
     setError("");
     try {
-      const q = query(
-        collection(db, "memos"),
-        where("uid", "==", user.uid),
-        orderBy("created_at", "desc")
-      );
-      const querySnapshot = await getDocs(q);
-      const encryptionKey = await deriveEncryptionKey(user.uid, userSalt, pin);
-      const decrypted: Memo[] = [];
-      for (const docSnap of querySnapshot.docs) {
-        const data = docSnap.data() as Memo;
-        try {
-          const plain = await decryptMemoWithKey(
-            data.cipher,
-            data.iv,
-            encryptionKey
-          );
-          let title, body;
-          try {
-            const parsed = JSON.parse(plain);
-            title = parsed.title ?? "";
-            body = parsed.body ?? "";
-          } catch {
-            // plain이 JSON이 아니면 첫 줄=제목, 나머지=본문
-            const [first, ...rest] = plain.split("\n");
-            title = first;
-            body = rest.join("\n");
-          }
-          decrypted.push({ ...data, plain, title, body, id: docSnap.id });
-        } catch {
-          decrypted.push({ ...data, plain: "(복호화 실패)", id: docSnap.id });
-        }
+      const supabase = createClient();
+      const { data, error } = await supabase
+        .from("memos")
+        .select("*")
+        .eq("user_id", user.id)
+        .order("updated_at", { ascending: false });
+
+      if (error) {
+        console.error("메모 가져오기 오류:", error);
+        setMemos([]);
+      } else {
+        setMemos(data || []);
       }
-      setMemos(decrypted);
-      console.log("[fetchMemos] memos.length:", decrypted.length);
     } catch {
       setError("메모 불러오기 실패");
     }
     setLoading(false);
   };
 
-  // 저장 (암호화)
+  // 저장
   const handleSave = async () => {
-    if (!pin || !user || !userSalt) {
+    if (!user) {
       setError("오류가 발생했습니다. 다시 시도해 주세요.");
-      console.error("오류가 발생했습니다. 다시 시도해 주세요.");
       return;
     }
     setLoading(true);
     setError("");
     try {
-      let tagsToSave = selectedTags;
-      if (!selectedTags.length && defaultTagId) {
-        tagsToSave = [defaultTagId];
-      }
-      const encryptionKey = await deriveEncryptionKey(user.uid, userSalt, pin);
-      const { cipher, iv } = await encryptMemoWithKey(
-        JSON.stringify({ title, body }),
-        encryptionKey
-      );
-      await addDoc(collection(db, "memos"), {
-        cipher,
-        iv,
-        uid: user.uid,
-        created_at: Timestamp.now(),
-        tags: tagsToSave,
-      });
+      const tagsToSave = selectedTags;
+      // 기본 태그가 없으므로 선택된 태그만 사용
+      const supabase = createClient();
+      await supabase.from("memos").insert([
+        {
+          user_id: user.id,
+          title,
+          content: body,
+          tags: tagsToSave,
+        },
+      ]);
       setTitle("");
       setBody("");
-      await fetchMemos(pin);
+      await fetchMemos();
     } catch {
       setError("저장 실패");
     }
@@ -197,8 +125,13 @@ export default function NotesHome() {
     setItemLoading(id);
     setError("");
     try {
-      await deleteDoc(doc(db, "memos", id));
-      if (pin) await fetchMemos(pin);
+      const supabase = createClient();
+      await supabase
+        .from("memos")
+        .delete()
+        .eq("id", id)
+        .eq("user_id", user?.id);
+      await fetchMemos();
     } catch {
       setError("삭제 실패");
     }
@@ -215,24 +148,24 @@ export default function NotesHome() {
 
   // 메모 수정 저장
   const handleEditSave = async () => {
-    if (!editId || !pin || !userSalt) return;
+    if (!editId || !user) return;
     setItemLoading(editId);
     setError("");
     try {
-      const encryptionKey = await deriveEncryptionKey(user!.uid, userSalt, pin);
-      const { cipher, iv } = await encryptMemoWithKey(
-        JSON.stringify({ title: editTitle, body: editBody }),
-        encryptionKey
-      );
-      await updateDoc(doc(db, "memos", editId), {
-        cipher,
-        iv,
-        tags: selectedTags,
-      });
+      const supabase = createClient();
+      await supabase
+        .from("memos")
+        .update({
+          title: editTitle,
+          content: editBody,
+          tags: selectedTags,
+        })
+        .eq("id", editId)
+        .eq("user_id", user.id);
       setEditId(null);
       setEditTitle("");
       setEditBody("");
-      await fetchMemos(pin);
+      await fetchMemos();
     } catch {
       setError("수정 실패");
     }
@@ -240,24 +173,10 @@ export default function NotesHome() {
   };
 
   useEffect(() => {
-    console.log(
-      "[NotesHome useEffect] pin:",
-      !!pin,
-      "user:",
-      !!user,
-      "userSalt:",
-      !!userSalt
-    );
-    if (pin && user && userSalt) fetchMemos(pin);
-  }, [pin, user, userSalt]);
+    if (user) fetchMemos();
+  }, [user]);
 
-  const {
-    tags: allTags,
-    addTag,
-    updateTag,
-    defaultTagId,
-    deleteTag,
-  } = useTags();
+  const { tags: allTags, createTag, updateTag, deleteTag } = useTags();
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   // 태그 필터 상태 추가
   const [filterTag, setFilterTag] = useState<string>("all");
@@ -280,13 +199,13 @@ export default function NotesHome() {
           : m.tags?.includes(filterTag))) &&
       (!search ||
         m.title?.toLowerCase().includes(search.toLowerCase()) ||
-        m.body?.toLowerCase().includes(search.toLowerCase()))
+        m.content?.toLowerCase().includes(search.toLowerCase()))
   );
 
   const addTagWrapper = async (tag: { name: string; color: string }) => {
-    const docRef = await addTag(tag);
-    if (!docRef) throw new Error("태그 생성 실패");
-    return docRef;
+    const result = await createTag(tag.name, tag.color);
+    if (!result.data) throw new Error("태그 생성 실패");
+    return result.data;
   };
 
   // 사이드바 닫힐 때 편집 상태 모두 초기화
@@ -294,7 +213,6 @@ export default function NotesHome() {
     if (!tagSidebarOpen) {
       setTagEditMode(false);
       setColorPickerOpenId(null);
-      // setSidebarMode("tag"); // 사이드바 닫힐 때 모드 초기화
     }
   }, [tagSidebarOpen]);
 
@@ -401,7 +319,7 @@ export default function NotesHome() {
                             >
                               <FiEdit2 size={15} />
                             </button>
-                            {tag.id === defaultTagId ? (
+                            {tag.is_default ? (
                               <button
                                 className="ml-auto text-xs text-gray-300 cursor-not-allowed"
                                 title="기본 태그는 삭제할 수 없습니다"
@@ -595,26 +513,9 @@ export default function NotesHome() {
                   {importantTag.name}
                 </button>
               )}
-              {/* 기본 태그 */}
-              {(() => {
-                const defaultTag = allTags.find((t) => t.id === defaultTagId);
-                return defaultTag ? (
-                  <button
-                    key={defaultTag.id}
-                    className={`px-3 py-1 rounded-sm text-sm font-semibold border transition-colors duration-150 shadow-sm border-border text-gray-600 shrink-0 max-w-[100px] truncate ${
-                      filterTag === defaultTag.id
-                        ? "bg-black text-white"
-                        : "bg-bg hover:bg-gray-200 hover:text-black"
-                    }`}
-                    onClick={() => setFilterTag(defaultTag.id)}
-                  >
-                    {defaultTag.name}
-                  </button>
-                ) : null;
-              })()}
               {/* 나머지 태그 */}
               {allTags
-                .filter((t) => t.id !== defaultTagId && t.name !== "중요")
+                .filter((t) => t.name !== "중요")
                 .map((tag) => (
                   <button
                     key={tag.id}
@@ -748,12 +649,9 @@ export default function NotesHome() {
                                 );
                                 return;
                               }
-                              const docRef = await addTag({
-                                name,
-                                color,
-                              });
-                              if (!docRef?.id) return;
-                              setPendingTagId(docRef.id); // setSelectedTags는 호출하지 않음
+                              const result = await createTag(name, color);
+                              if (!result.data?.id) return;
+                              setPendingTagId(result.data.id); // setSelectedTags는 호출하지 않음
                             }}
                           />
                           <div className="flex gap-2">
@@ -796,7 +694,9 @@ export default function NotesHome() {
                                 WebkitBoxOrient: "vertical",
                                 overflow: "hidden",
                               }}
-                              dangerouslySetInnerHTML={{ __html: m.body ?? "" }}
+                              dangerouslySetInnerHTML={{
+                                __html: m.content ?? "",
+                              }}
                             />
                             {/* 날짜와 태그 뱃지 flex-row, 태그가 왼쪽, 날짜가 오른쪽 */}
                             <div className="text-xs text-gray-400 mt-1 flex items-center gap-2 flex-row overflow-hidden whitespace-nowrap text-ellipsis max-w-full">
@@ -818,8 +718,7 @@ export default function NotesHome() {
                                 ) : null;
                               })}
                               {(() => {
-                                const date = m.created_at?.toDate?.();
-                                if (!date) return "";
+                                const date = new Date(m.updated_at);
                                 const mm = String(date.getMonth() + 1).padStart(
                                   2,
                                   "0"
@@ -897,7 +796,12 @@ export default function NotesHome() {
             );
             for (const memo of relatedMemos) {
               if (memo.id) {
-                await deleteDoc(doc(db, "memos", memo.id));
+                const supabase = createClient();
+                await supabase
+                  .from("memos")
+                  .delete()
+                  .eq("id", memo.id)
+                  .eq("user_id", user?.id);
               }
             }
             // 2. 태그 자체 삭제
@@ -924,12 +828,15 @@ export default function NotesHome() {
               setAlertMsg("이미 같은 이름의 태그가 있습니다.");
               return;
             }
+
+            // 모든 태그는 이름과 색상 변경 가능 (기본 태그도 색상 변경 가능)
             await updateTag(editModal.id, { name, color });
             setEditModal(null);
           }}
           initialName={editModal.name}
           initialColor={editModal.color}
           mode="edit"
+          editingTag={allTags.find((t) => t.id === editModal.id)}
         />
       )}
       {/* 새 태그 만들기 모달: 항상 전체 화면 중앙에 한 번만 표시 */}
@@ -946,9 +853,9 @@ export default function NotesHome() {
             setAlertMsg("이미 같은 이름의 태그가 있습니다.");
             return;
           }
-          const docRef = await addTag({ name, color });
-          if (!docRef?.id) return;
-          setPendingTagId(docRef.id);
+          const result = await createTag(name, color);
+          if (!result.data?.id) return;
+          setPendingTagId(result.data.id);
         }}
       />
       {/* 중복 태그명 등 알림: AlertModal(확인만 있는 모달) */}

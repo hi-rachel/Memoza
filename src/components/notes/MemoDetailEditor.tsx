@@ -2,7 +2,7 @@ import React, { useRef, useEffect, useState } from "react";
 import TagSelector from "@/components/tags/TagSelector";
 import TagCreateModal from "@/components/tags/TagCreateModal";
 import AlertModal from "@/components/ui/AlertModal";
-import type { DocumentReference } from "firebase/firestore";
+import type { Tag } from "@/types/memo";
 
 interface MemoDetailEditorProps {
   title: string;
@@ -11,12 +11,12 @@ interface MemoDetailEditorProps {
   setBody: (v: string) => void;
   selectedTags: string[];
   setSelectedTags: (v: string[]) => void;
-  allTags: { id: string; name: string; color: string }[];
+  allTags: Tag[];
   onSave: (tags?: string[]) => Promise<void>;
   loading: boolean;
   showTagModal: boolean;
   setShowTagModal: (v: boolean) => void;
-  addTag: (tag: { name: string; color: string }) => Promise<DocumentReference>;
+  addTag: (tag: { name: string; color: string }) => Promise<{ id: string }>;
   alertMsg: string;
   setAlertMsg: (msg: string) => void;
 }

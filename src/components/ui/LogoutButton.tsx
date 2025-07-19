@@ -1,8 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { signOut } from "firebase/auth";
-import { auth } from "@/lib/firebase";
+import { createClient } from "@/lib/supabase/client";
 
 export default function LogoutButton({
   className = "",
@@ -10,14 +9,12 @@ export default function LogoutButton({
   className?: string;
 }) {
   const router = useRouter();
+  const supabase = createClient();
 
   const handleLogout = async () => {
     try {
-      await signOut(auth);
-      // PIN 관련 sessionStorage 값 초기화
-      window.sessionStorage.removeItem("memoza_pin");
-      window.sessionStorage.removeItem("memoza_pin_set");
-      window.sessionStorage.removeItem("memoza_pin_entered");
+      await supabase.auth.signOut();
+      // 로그아웃 시 세션 정리
       router.push("/login");
     } catch {
       alert("로그아웃에 실패했습니다.");

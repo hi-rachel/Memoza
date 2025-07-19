@@ -1,44 +1,79 @@
 "use client";
 
-import {
-  useEffect,
-  useState,
-  createContext,
-  useContext,
-  type ReactNode,
-} from "react";
-import { onAuthStateChanged, User } from "firebase/auth";
-import { auth } from "@/lib/firebase";
-
-type AuthContextType = {
-  user: User | null | undefined;
-  loading: boolean;
-};
-
-const AuthContext = createContext<AuthContextType>({
-  user: undefined,
-  loading: true,
-});
-
-export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<User | null | undefined>(undefined);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
-      setUser(firebaseUser);
-      setLoading(false);
-    });
-    return () => unsubscribe();
-  }, []);
-
-  return (
-    <AuthContext.Provider value={{ user, loading }}>
-      {children}
-    </AuthContext.Provider>
-  );
-}
+import { useEffect, useState } from "react";
+import { User } from "@supabase/supabase-js";
+import { createClient } from "@/lib/supabase/client";
+import { useRouter } from "next/navigation";
 
 export function useAuthUser() {
-  return useContext(AuthContext);
+  const [user, setUser] = useState<User | null>(null);
+  const [loading, setLoading] = useState(true);
+  const router = useRouter();
+
+  useEffect(() => {
+    const supabase = createClient();
+
+    // 현재 세션 가져오기
+    const getSession = async () => {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      setUser(session?.user ?? null);
+      setLoading(false);
+    };
+
+    getSession();
+
+    // 인증 상태 변경 감지
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((event, session) => {
+      setUser(session?.user ?? null);
+      setLoading(false);
+
+      if (event === "SIGNED_IN") {
+        router.push("/notes");
+      } else if (event === "SIGNED_OUT") {
+        router.push("/login");
+      }
+    });
+
+    return () => subscription.unsubscribe();
+  }, [router]);
+
+  const signInWithGoogle = async () => {
+    const supabase = createClient();
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: "google",
+      options: {
+        redirectTo: `${window.location.origin}/auth/callback`,
+      },
+    });
+    return { error };
+  };
+
+  const signInWithGithub = async () => {
+    const supabase = createClient();
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: "github",
+      options: {
+        redirectTo: `${window.location.origin}/auth/callback`,
+      },
+    });
+    return { error };
+  };
+
+  const signOut = async () => {
+    const supabase = createClient();
+    const { error } = await supabase.auth.signOut();
+    return { error };
+  };
+
+  return {
+    user,
+    loading,
+    signInWithGoogle,
+    signInWithGithub,
+    signOut,
+  };
 }

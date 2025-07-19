@@ -40,6 +40,11 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
-# docs
-want-to-make.md
-todo.md
+# docs and planning files
+/docs
+
+/db
+
+# backup files
+/backups/
+*.json.backup

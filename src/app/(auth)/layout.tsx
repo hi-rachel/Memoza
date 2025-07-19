@@ -4,7 +4,7 @@ import { useEffect } from "react";
 import { useAuthUser } from "@/hooks/useAuthUser";
 import { useRouter } from "next/navigation";
 
-export default function NotesLayout({
+export default function AuthLayout({
   children,
 }: {
   children: React.ReactNode;
@@ -13,8 +13,8 @@ export default function NotesLayout({
   const router = useRouter();
 
   useEffect(() => {
-    if (!loading && !user) {
-      router.push("/login");
+    if (!loading && user) {
+      router.push("/notes");
     }
   }, [user, loading, router]);
 
@@ -26,7 +26,7 @@ export default function NotesLayout({
     );
   }
 
-  if (!user) {
+  if (user) {
     return null;
   }
 

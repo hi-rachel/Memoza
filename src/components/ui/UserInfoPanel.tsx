@@ -23,9 +23,10 @@ export default function UserInfoPanel() {
   }, [menuOpen]);
 
   if (!user) return null;
-  const name = user.displayName || "User";
+  const name =
+    user.user_metadata?.full_name || user.user_metadata?.name || "User";
   const email = user.email || "-";
-  const photo = user.photoURL;
+  const photo = user.user_metadata?.avatar_url || user.user_metadata?.picture;
   const initial = name[0]?.toUpperCase() || "U";
 
   return (

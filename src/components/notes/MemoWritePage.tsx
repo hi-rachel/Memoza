@@ -2,7 +2,7 @@ import React, { useRef, useEffect, useState } from "react";
 import TagSelector from "@/components/tags/TagSelector";
 import TagCreateModal from "@/components/tags/TagCreateModal";
 import { FiStar, FiChevronLeft } from "react-icons/fi";
-import type { DocumentReference } from "firebase/firestore";
+import type { Tag } from "@/types/memo";
 
 interface MemoWritePageProps {
   open: boolean;
@@ -13,12 +13,12 @@ interface MemoWritePageProps {
   setBody: (v: string) => void;
   selectedTags: string[];
   setSelectedTags: (v: string[]) => void;
-  allTags: { id: string; name: string; color: string }[];
+  allTags: Tag[];
   onSave: (tags?: string[]) => Promise<void>;
   loading: boolean;
   showTagModal: boolean;
   setShowTagModal: (v: boolean) => void;
-  addTag: (tag: { name: string; color: string }) => Promise<DocumentReference>;
+  addTag: (tag: { name: string; color: string }) => Promise<{ id: string }>;
   setAlertMsg: (msg: string) => void;
 }
 

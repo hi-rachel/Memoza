@@ -1,7 +1,8 @@
 "use client";
 
-import { PALETTE } from "@/constants/colors";
 import React, { useEffect, useState } from "react";
+import { PALETTE } from "@/constants/colors";
+import type { Tag } from "@/types/memo";
 
 interface TagCreateModalProps {
   open: boolean;
@@ -10,6 +11,7 @@ interface TagCreateModalProps {
   initialName?: string;
   initialColor?: string;
   mode?: "edit" | "create";
+  editingTag?: Tag;
 }
 
 export default function TagCreateModal({
@@ -19,6 +21,7 @@ export default function TagCreateModal({
   initialName = "",
   initialColor = PALETTE[0],
   mode = "create",
+  editingTag,
 }: TagCreateModalProps) {
   const [name, setName] = useState(initialName);
   const [color, setColor] = useState(initialColor);
@@ -31,6 +34,8 @@ export default function TagCreateModal({
   }, [initialName, initialColor]);
 
   if (!open) return null;
+
+  const isDefaultTag = editingTag?.is_default;
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -68,6 +73,8 @@ export default function TagCreateModal({
           maxLength={20}
           autoFocus
         />
+
+        {/* 색상 선택 UI - 모든 태그에서 사용 가능 */}
         <div className="flex flex-wrap gap-2 items-center">
           {PALETTE.map((c) => (
             <button
@@ -118,6 +125,14 @@ export default function TagCreateModal({
             />
           </label>
         </div>
+
+        {/* 기본 태그인 경우 안내 메시지 */}
+        {isDefaultTag && (
+          <div className="text-sm text-gray-600 bg-gray-50 p-2 rounded">
+            기본 태그는 삭제할 수 없지만 이름과 색상은 변경할 수 있습니다.
+          </div>
+        )}
+
         {error && <div className="text-red-500 text-xs">{error}</div>}
         <div className="flex gap-2 mt-2">
           <button
