@@ -21,6 +21,7 @@ import ConfirmModal from "@/components/ui/ConfirmModal";
 import UserInfoPanel from "@/components/ui/UserInfoPanel";
 import MemoWritePage from "@/components/notes/MemoWritePage";
 import AlertModal from "@/components/ui/AlertModal";
+import DdayWidget from "@/components/ui/DdayWidget";
 
 interface Memo {
   id: string;
@@ -72,7 +73,7 @@ export default function NotesHome() {
         .from("memos")
         .select("*")
         .eq("user_id", user.id)
-        .order("updated_at", { ascending: false });
+        .order("created_at", { ascending: false });
 
       if (error) {
         console.error("메모 가져오기 오류:", error);
@@ -87,7 +88,7 @@ export default function NotesHome() {
   };
 
   // 저장
-  const handleSave = async () => {
+  const handleSave = async (tags?: string[]) => {
     if (!user) {
       setError("오류가 발생했습니다. 다시 시도해 주세요.");
       return;
@@ -95,8 +96,16 @@ export default function NotesHome() {
     setLoading(true);
     setError("");
     try {
-      const tagsToSave = selectedTags;
-      // 기본 태그가 없으므로 선택된 태그만 사용
+      let tagsToSave = tags || selectedTags;
+
+      // 태그가 없으면 기본 태그 자동 할당
+      if (tagsToSave.length === 0) {
+        const defaultTag = allTags.find((tag) => tag.is_default);
+        if (defaultTag) {
+          tagsToSave = [defaultTag.id];
+        }
+      }
+
       const supabase = createClient();
       await supabase.from("memos").insert([
         {
@@ -108,6 +117,7 @@ export default function NotesHome() {
       ]);
       setTitle("");
       setBody("");
+      setSelectedTags([]);
       await fetchMemos();
     } catch {
       setError("저장 실패");
@@ -188,7 +198,7 @@ export default function NotesHome() {
   const [pendingTagId, setPendingTagId] = useState<string | null>(null);
 
   // 중요 태그 id를 항상 정확히 찾음
-  const importantTag = allTags.find((t) => t.name === "중요");
+  const importantTag = allTags.find((t) => t.is_important);
 
   // 필터링 로직에서 중요 태그 id로 필터
   const filteredMemos = memos.filter(
@@ -285,7 +295,7 @@ export default function NotesHome() {
                   return (
                     <ul className="flex-1 overflow-y-auto px-4">
                       {[...allTags]
-                        .filter((t) => t.name !== "중요")
+                        .filter((t) => !t.is_important)
                         .sort((a, b) => (b.id > a.id ? 1 : -1))
                         .map((tag) => (
                           <li
@@ -308,7 +318,7 @@ export default function NotesHome() {
                             </span>
                             <button
                               className="text-gray-400 hover:text-black p-1"
-                              title="편집"
+                              title="편짓"
                               onClick={() =>
                                 setEditModal({
                                   id: tag.id,
@@ -428,11 +438,11 @@ export default function NotesHome() {
                 </div>
                 {/* 태그 목록 */}
                 <ul className="flex-1 overflow-y-auto pb-2">
-                  {allTags.filter((t) => t.name !== "중요").length === 0 && (
+                  {allTags.filter((t) => !t.is_important).length === 0 && (
                     <li className="text-gray-400 py-2">태그 없음</li>
                   )}
                   {[...allTags]
-                    .filter((t) => t.name !== "중요")
+                    .filter((t) => !t.is_important)
                     .sort((a, b) => (b.id > a.id ? 1 : -1))
                     .map((tag) => (
                       <li
@@ -469,18 +479,71 @@ export default function NotesHome() {
       )}
       {/* 오른쪽 기존 메인 UI (왼쪽 nav만큼 margin) */}
       <div className="flex-1 flex flex-col">
-        <Header
-          search={search}
-          setSearch={setSearch}
-          onOpenSidebar={() => setTagSidebarOpen(true)}
-          selectMode={selectMode}
-          onToggleSelectMode={() => {
-            setSelectMode((v) => !v);
-            setSelectedMemoIds([]);
-          }}
-        />
+        {editId ? (
+          // 편집 모드 헤더
+          <div className="h-[56px] flex items-center px-4 py-2 border-b border-gray-200 bg-white/80 sticky top-0 z-30">
+            <button
+              className="p-2 text-gray-400 hover:text-black"
+              onClick={handleEditCancel}
+              aria-label="뒤로"
+            >
+              <FiChevronLeft size={22} />
+            </button>
+            <div className="flex-1 flex items-center justify-end gap-2">
+              <button
+                onClick={async () => {
+                  let tagId = importantTag?.id;
+                  if (!tagId) {
+                    const result = await createTag("중요", "#facc15");
+                    tagId = result.data?.id;
+                    if (!tagId) return;
+                  }
+                  if (selectedTags.includes(tagId)) {
+                    setSelectedTags(selectedTags.filter((id) => id !== tagId));
+                  } else {
+                    setSelectedTags(
+                      Array.from(new Set([...selectedTags, tagId]))
+                    );
+                  }
+                }}
+                aria-label="중요 표시"
+                className={
+                  importantTag && selectedTags.includes(importantTag.id)
+                    ? "text-yellow-400"
+                    : "text-gray-400 hover:text-yellow-400"
+                }
+              >
+                <FiStar
+                  size={22}
+                  fill={
+                    importantTag && selectedTags.includes(importantTag.id)
+                      ? "#facc15"
+                      : "none"
+                  }
+                />
+              </button>
+            </div>
+          </div>
+        ) : (
+          // 일반 모드 헤더
+          <Header
+            search={search}
+            setSearch={setSearch}
+            onOpenSidebar={() => setTagSidebarOpen(true)}
+            selectMode={selectMode}
+            onToggleSelectMode={() => {
+              setSelectMode((v) => !v);
+              setSelectedMemoIds([]);
+            }}
+          />
+        )}
         <div className="p-4 flex flex-col items-center min-h-screen bg-bg text-text">
           <div className="w-full flex justify-end pt-6 pb-2"></div>
+          {/* D-Day 위젯 */}
+          <div className="w-full max-w-5xl mx-auto mb-4">
+            <DdayWidget />
+          </div>
+
           {/* 입력창 하단에 태그 필터 UI 추가 */}
           {/* 태그 필터 버튼: 전체 → 중요 → 기본 → 나머지 */}
           <div className="w-full max-w-5xl mx-auto mb-2 pr-2">
@@ -515,7 +578,7 @@ export default function NotesHome() {
               )}
               {/* 나머지 태그 */}
               {allTags
-                .filter((t) => t.name !== "중요")
+                .filter((t) => !t.is_important)
                 .map((tag) => (
                   <button
                     key={tag.id}
@@ -702,7 +765,9 @@ export default function NotesHome() {
                             <div className="text-xs text-gray-400 mt-1 flex items-center gap-2 flex-row overflow-hidden whitespace-nowrap text-ellipsis max-w-full">
                               {m.tags?.map((tagId) => {
                                 const tag = allTags.find((t) => t.id === tagId);
-                                return tag ? (
+                                // 중요 태그는 뱃지로 표시하지 않음
+                                if (!tag || tag.is_important) return null;
+                                return (
                                   <span
                                     key={tagId}
                                     className="px-2 py-0.5 rounded-full text-xs font-semibold border flex items-center gap-1 bg-bg border-border text-text"
@@ -715,8 +780,17 @@ export default function NotesHome() {
                                     />
                                     {tag.name}
                                   </span>
-                                ) : null;
+                                );
                               })}
+                              {/* 중요 태그가 있으면 별 표시 */}
+                              {importantTag &&
+                                m.tags?.includes(importantTag.id) && (
+                                  <FiStar
+                                    size={16}
+                                    className="ml-1 text-yellow-400"
+                                    fill="#facc15"
+                                  />
+                                )}
                               {(() => {
                                 const date = new Date(m.updated_at);
                                 const mm = String(date.getMonth() + 1).padStart(
@@ -746,7 +820,9 @@ export default function NotesHome() {
             onClick={() => {
               setTitle("");
               setBody("");
-              setSelectedTags([]);
+              // 기본 태그가 있으면 자동 선택
+              const defaultTag = allTags.find((tag) => tag.is_default);
+              setSelectedTags(defaultTag ? [defaultTag.id] : []);
               setShowWrite(true);
             }}
           >

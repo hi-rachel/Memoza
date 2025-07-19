@@ -4,6 +4,7 @@ export interface Tag {
   name: string;
   color: string;
   is_default: boolean; // 기본 태그 여부
+  is_important: boolean; // 중요 태그 여부
   is_deletable: boolean; // 삭제 가능 여부
   created_at: string;
   updated_at: string;

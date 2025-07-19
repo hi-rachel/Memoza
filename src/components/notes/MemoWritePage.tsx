@@ -43,9 +43,10 @@ const MemoWritePage: React.FC<MemoWritePageProps> = ({
   const bodyRef = useRef<HTMLTextAreaElement>(null);
   const [pendingTagId, setPendingTagId] = useState<string | null>(null);
   const [star, setStar] = useState(false);
+  const [hasContent, setHasContent] = useState(false);
 
   // 중요 태그 id 찾기
-  const importantTag = allTags.find((t) => t.name === "중요");
+  const importantTag = allTags.find((t) => t.is_important);
 
   // 별(중요) 토글 핸들러
   const handleToggleStar = async () => {
@@ -60,7 +61,8 @@ const MemoWritePage: React.FC<MemoWritePageProps> = ({
       setSelectedTags(selectedTags.filter((id) => id !== tagId));
       setStar(false);
     } else {
-      setSelectedTags([tagId, ...selectedTags]);
+      // 중복 없이 추가
+      setSelectedTags(Array.from(new Set([...selectedTags, tagId])));
       setStar(true);
     }
   };
@@ -74,6 +76,23 @@ const MemoWritePage: React.FC<MemoWritePageProps> = ({
     }
   }, [selectedTags, importantTag]);
 
+  // 내용 변경 감지
+  useEffect(() => {
+    const hasTitleOrBody = title.trim().length > 0 || body.trim().length > 0;
+    setHasContent(hasTitleOrBody);
+  }, [title, body]);
+
+  // 자동 저장 함수
+  const handleAutoSave = async () => {
+    if (hasContent) {
+      try {
+        await onSave();
+      } catch (error) {
+        console.error("자동 저장 실패:", error);
+      }
+    }
+  };
+
   useEffect(() => {
     if (open) {
       setTimeout(() => {
@@ -84,11 +103,13 @@ const MemoWritePage: React.FC<MemoWritePageProps> = ({
 
   useEffect(() => {
     if (pendingTagId && allTags.some((t) => t.id === pendingTagId)) {
-      setSelectedTags([pendingTagId]);
+      // 기존 태그를 유지하면서 새 태그 추가
+      const updatedTags = Array.from(new Set([...selectedTags, pendingTagId]));
+      setSelectedTags(updatedTags);
       setPendingTagId(null);
-      onSave([pendingTagId]);
+      onSave(updatedTags);
     }
-  }, [allTags, pendingTagId, setSelectedTags, onSave]);
+  }, [allTags, pendingTagId, setSelectedTags, onSave, selectedTags]);
 
   if (!open) return null;
 
@@ -98,7 +119,10 @@ const MemoWritePage: React.FC<MemoWritePageProps> = ({
       <div className="h-[56px] flex items-center px-4 py-2 border-b border-gray-200 bg-white/80 sticky top-0 z-30">
         <button
           className="p-2 text-gray-400 hover:text-black"
-          onClick={onClose}
+          onClick={async () => {
+            await handleAutoSave();
+            onClose();
+          }}
           aria-label="뒤로"
         >
           <FiChevronLeft size={22} />
@@ -176,7 +200,10 @@ const MemoWritePage: React.FC<MemoWritePageProps> = ({
         <div className="w-full max-w-2xl flex gap-2">
           <button
             className="flex-1 px-2 py-2 text-sm bg-gray-100 text-gray-700 font-bold shadow-none hover:bg-gray-200 transition"
-            onClick={onClose}
+            onClick={async () => {
+              await handleAutoSave();
+              onClose();
+            }}
             disabled={loading}
           >
             취소

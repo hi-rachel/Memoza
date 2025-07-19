@@ -46,6 +46,7 @@ export function useTags() {
           name,
           color,
           is_default: false,
+          is_important: false,
           is_deletable: true,
         },
       ])
@@ -69,6 +70,13 @@ export function useTags() {
     if (tag?.is_default) {
       if (updates.is_default === false || updates.is_deletable === true) {
         return { error: "기본 태그의 설정을 변경할 수 없습니다." };
+      }
+    }
+
+    // 중요 태그의 is_important, is_deletable 변경 방지
+    if (tag?.is_important) {
+      if (updates.is_important === false || updates.is_deletable === true) {
+        return { error: "중요 태그의 설정을 변경할 수 없습니다." };
       }
     }
 
@@ -97,6 +105,11 @@ export function useTags() {
     const tag = tags.find((t) => t.id === id);
     if (tag?.is_default) {
       return { error: "기본 태그는 삭제할 수 없습니다." };
+    }
+
+    // 중요 태그 삭제 방지
+    if (tag?.is_important) {
+      return { error: "중요 태그는 삭제할 수 없습니다." };
     }
 
     const supabase = createClient();
@@ -130,6 +143,61 @@ export function useTags() {
     }
 
     return { data: data?.[0] };
+  };
+
+  // 중요 태그 가져오기
+  const getImportantTag = async () => {
+    if (!user) return { error: "사용자가 로그인되지 않았습니다." };
+
+    const supabase = createClient();
+    const { data, error } = await supabase
+      .from("tags")
+      .select("*")
+      .eq("user_id", user.id)
+      .eq("is_important", true)
+      .single();
+
+    if (error) {
+      console.error("중요 태그 가져오기 오류:", error);
+      return { error };
+    }
+
+    return { data };
+  };
+
+  // 중요 태그 생성 (없는 경우)
+  const ensureImportantTag = async () => {
+    if (!user) return { error: "사용자가 로그인되지 않았습니다." };
+
+    const { data: importantTag } = await getImportantTag();
+    if (importantTag) {
+      return { data: importantTag };
+    }
+
+    // 중요 태그가 없으면 생성
+    const supabase = createClient();
+    const { data, error } = await supabase
+      .from("tags")
+      .insert([
+        {
+          user_id: user.id,
+          name: "중요",
+          color: "#facc15",
+          is_default: false,
+          is_important: true,
+          is_deletable: false,
+        },
+      ])
+      .select()
+      .single();
+
+    if (error) {
+      console.error("중요 태그 생성 오류:", error);
+      return { error };
+    }
+
+    setTags((prev) => [data, ...prev]);
+    return { data };
   };
 
   // 기본 태그 이름 변경
@@ -193,6 +261,8 @@ export function useTags() {
     updateTag,
     deleteTag,
     getDefaultTag,
+    getImportantTag,
+    ensureImportantTag,
     updateDefaultTagName,
     ensureDefaultTag,
     refetch: fetchTags,

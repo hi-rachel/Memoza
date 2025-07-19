@@ -6,6 +6,7 @@ import { createClient } from "@/lib/supabase/client";
 import { useAuthUser } from "@/hooks/useAuthUser";
 import { useTags } from "@/hooks/useTags";
 import TagSelector from "@/components/tags/TagSelector";
+import { FiChevronLeft, FiStar } from "react-icons/fi";
 
 export interface Memo {
   id: string;
@@ -29,6 +30,9 @@ export default function MemoDetailPage() {
   const router = useRouter();
   const { user } = useAuthUser();
   const { tags } = useTags();
+
+  // 중요 태그 찾기
+  const importantTag = tags.find((t) => t.is_important);
 
   const fetchMemo = async () => {
     if (!user) return;
@@ -107,17 +111,63 @@ export default function MemoDetailPage() {
   const handleTagsChange = (selectedTagIds: string[]) => {
     if (!memo) return;
 
-    const updatedMemo = { ...memo, tags: selectedTagIds };
+    // 중요 태그가 있으면 유지
+    const importantTagIds = memo.tags.filter((id) => {
+      const tag = tags.find((t) => t.id === id);
+      return tag && tag.is_important;
+    });
+
+    // 선택된 태그와 중요 태그를 합침
+    const updatedTags = Array.from(
+      new Set([...selectedTagIds, ...importantTagIds])
+    );
+
+    const updatedMemo = { ...memo, tags: updatedTags };
     setMemo(updatedMemo);
-    saveMemo({ tags: selectedTagIds });
+    saveMemo({ tags: updatedTags });
   };
 
   const toggleStar = async () => {
-    if (!memo) return;
+    if (!memo || !user) return;
 
-    const updatedMemo = { ...memo, is_starred: !memo.is_starred };
-    setMemo(updatedMemo);
-    saveMemo({ is_starred: !memo.is_starred });
+    // 중요 태그 찾기
+    const importantTag = tags.find((t) => t.is_important);
+    if (!importantTag) {
+      // 중요 태그가 없으면 생성
+      const supabase = createClient();
+      const { data: newTag } = await supabase
+        .from("tags")
+        .insert([
+          {
+            name: "중요",
+            color: "#facc15",
+            user_id: user.id,
+            is_important: true,
+            is_default: false,
+            is_deletable: false,
+          },
+        ])
+        .select()
+        .single();
+
+      if (!newTag) return;
+
+      // 새로 생성된 중요 태그를 tags 배열에 추가
+      const updatedTags = [...memo.tags, newTag.id];
+      const updatedMemo = { ...memo, tags: updatedTags };
+      setMemo(updatedMemo);
+      saveMemo({ tags: updatedTags });
+    } else {
+      // 중요 태그가 있으면 토글
+      const hasImportantTag = memo.tags.includes(importantTag.id);
+      const updatedTags = hasImportantTag
+        ? memo.tags.filter((id) => id !== importantTag.id)
+        : [...memo.tags, importantTag.id];
+
+      const updatedMemo = { ...memo, tags: updatedTags };
+      setMemo(updatedMemo);
+      saveMemo({ tags: updatedTags });
+    }
   };
 
   const deleteMemo = async () => {
@@ -165,30 +215,34 @@ export default function MemoDetailPage() {
   return (
     <div className="min-h-screen bg-gray-50">
       {/* 헤더 */}
-      <div className="bg-white border-b border-gray-200 px-4 py-3">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <button
-              onClick={() => router.push("/notes")}
-              className="text-gray-600 hover:text-gray-900"
-            >
-              ← 뒤로
-            </button>
-            <div className="flex items-center gap-2">
-              <button
-                onClick={toggleStar}
-                className="text-yellow-500 hover:text-yellow-600"
-              >
-                {memo.is_starred ? "★" : "☆"}
-              </button>
-              <span className="text-sm text-gray-500">
-                {saving ? "저장 중..." : "저장됨"}
-              </span>
-            </div>
-          </div>
+      <div className="h-[56px] flex items-center px-4 py-2 border-b border-gray-200 bg-white/80 sticky top-0 z-30">
+        <button
+          className="p-2 text-gray-400 hover:text-black"
+          onClick={() => router.push("/notes")}
+          aria-label="뒤로"
+        >
+          <FiChevronLeft size={22} />
+        </button>
+        <div className="flex-1 flex items-center justify-end gap-2">
+          <button
+            onClick={toggleStar}
+            aria-label="중요 표시"
+            className={
+              memo.tags.includes(importantTag?.id || "")
+                ? "text-yellow-400"
+                : "text-gray-400 hover:text-yellow-400"
+            }
+          >
+            <FiStar
+              size={22}
+              fill={
+                memo.tags.includes(importantTag?.id || "") ? "#facc15" : "none"
+              }
+            />
+          </button>
           <button
             onClick={deleteMemo}
-            className="text-red-500 hover:text-red-700"
+            className="text-red-500 hover:text-red-700 px-2"
           >
             삭제
           </button>
@@ -197,11 +251,19 @@ export default function MemoDetailPage() {
 
       {/* 태그 선택 */}
       <div className="bg-white border-b border-gray-200 px-4 py-3">
-        <TagSelector
-          tags={tags}
-          selected={memo.tags}
-          onChange={handleTagsChange}
-        />
+        <div className="flex items-center justify-between">
+          <TagSelector
+            tags={tags.filter((t) => !t.is_important)}
+            selected={memo.tags.filter((id) => {
+              const tag = tags.find((t) => t.id === id);
+              return tag && !tag.is_important;
+            })}
+            onChange={handleTagsChange}
+          />
+          <span className="text-sm text-gray-500 ml-4">
+            {saving ? "저장 중..." : "저장됨"}
+          </span>
+        </div>
       </div>
 
       {/* 메모 내용 */}
