@@ -44,13 +44,13 @@ export default function UserInfoPanel() {
 
   const isKakaoUser = user.app_metadata?.provider === "kakao";
   const name = isKakaoUser
-    ? kakaoProfile?.nickname || user.user_metadata?.name || "카카오 사용자"
+    ? kakaoProfile?.nickname || user.user_metadata?.name || "User"
     : user.user_metadata?.full_name || user.user_metadata?.name || "User";
 
   const email = isKakaoUser
     ? kakaoProfile?.nickname
-      ? `${kakaoProfile.nickname} (카카오)`
-      : "카카오 사용자"
+      ? `${kakaoProfile.nickname}`
+      : "User"
     : user.email || "-";
 
   // 카카오 프로필이 로드되기 전까지는 기본 이미지 사용
