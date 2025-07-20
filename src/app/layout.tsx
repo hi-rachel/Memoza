@@ -5,7 +5,7 @@ import "./globals.css";
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "Memoza | 개인 지식 관리 시스템",
+  title: "Memoza",
   description: "언제 어디서나 당신의 생각을 기록하세요.",
 };
 
