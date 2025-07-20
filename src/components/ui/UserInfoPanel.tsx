@@ -7,8 +7,14 @@ import { useState, useRef, useEffect } from "react";
 import Image from "next/image";
 
 export default function UserInfoPanel() {
-  const { user } = useAuthUser();
+  const { user, getKakaoProfile } = useAuthUser();
   const [menuOpen, setMenuOpen] = useState(false);
+  const [kakaoProfile, setKakaoProfile] = useState<{
+    nickname?: string;
+    profileImage?: string;
+    kakaoId?: number;
+  } | null>(null);
+  const [isKakaoProfileLoaded, setIsKakaoProfileLoaded] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -22,11 +28,39 @@ export default function UserInfoPanel() {
     return () => document.removeEventListener("mousedown", handle);
   }, [menuOpen]);
 
+  // 카카오 사용자 프로필 정보 가져오기
+  useEffect(() => {
+    if (user?.app_metadata?.provider === "kakao") {
+      getKakaoProfile().then((profile) => {
+        setKakaoProfile(profile);
+        setIsKakaoProfileLoaded(true);
+      });
+    } else {
+      setIsKakaoProfileLoaded(true);
+    }
+  }, [user, getKakaoProfile]);
+
   if (!user) return null;
-  const name =
-    user.user_metadata?.full_name || user.user_metadata?.name || "User";
-  const email = user.email || "-";
-  const photo = user.user_metadata?.avatar_url || user.user_metadata?.picture;
+
+  const isKakaoUser = user.app_metadata?.provider === "kakao";
+  const name = isKakaoUser
+    ? kakaoProfile?.nickname || user.user_metadata?.name || "카카오 사용자"
+    : user.user_metadata?.full_name || user.user_metadata?.name || "User";
+
+  const email = isKakaoUser
+    ? kakaoProfile?.nickname
+      ? `${kakaoProfile.nickname} (카카오)`
+      : "카카오 사용자"
+    : user.email || "-";
+
+  // 카카오 프로필이 로드되기 전까지는 기본 이미지 사용
+  const photo =
+    isKakaoUser && isKakaoProfileLoaded
+      ? kakaoProfile?.profileImage ||
+        user.user_metadata?.avatar_url ||
+        user.user_metadata?.picture
+      : user.user_metadata?.avatar_url || user.user_metadata?.picture;
+
   const initial = name[0]?.toUpperCase() || "U";
 
   return (
