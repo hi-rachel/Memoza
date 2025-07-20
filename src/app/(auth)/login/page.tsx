@@ -177,8 +177,8 @@ export default function LoginPage() {
 
       {/* 하단 설명 */}
       <div className="mt-8 text-center text-sm text-gray-500">
-        <p>간편하게 로그인하고 메모를 시작하세요</p>
-        <p className="mt-1">개인정보는 안전하게 보호됩니다</p>
+        <p>개인 지식 관리 시스템</p>
+        <p className="mt-1">간편하게 로그인하고 메모를 시작하세요</p>
       </div>
     </div>
   );
