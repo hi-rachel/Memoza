@@ -19,7 +19,7 @@ export function useTags() {
       .select("*")
       .eq("user_id", user.id)
       .order("is_default", { ascending: false }) // 기본 태그를 먼저 표시
-      .order("created_at", { ascending: false });
+      .order("created_at", { ascending: true });
 
     if (error) {
       console.error("태그 가져오기 오류:", error);
