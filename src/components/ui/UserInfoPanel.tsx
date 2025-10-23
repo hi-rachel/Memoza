@@ -15,6 +15,7 @@ export default function UserInfoPanel() {
     kakaoId?: number;
   } | null>(null);
   const [isKakaoProfileLoaded, setIsKakaoProfileLoaded] = useState(false);
+  const [imageError, setImageError] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -34,9 +35,11 @@ export default function UserInfoPanel() {
       getKakaoProfile().then((profile) => {
         setKakaoProfile(profile);
         setIsKakaoProfileLoaded(true);
+        setImageError(false); // 새로운 프로필 로드 시 이미지 에러 상태 리셋
       });
     } else {
       setIsKakaoProfileLoaded(true);
+      setImageError(false);
     }
   }, [user, getKakaoProfile]);
 
@@ -61,18 +64,25 @@ export default function UserInfoPanel() {
         user.user_metadata?.picture
       : user.user_metadata?.avatar_url || user.user_metadata?.picture;
 
+  // 이미지 에러 처리 함수
+  const handleImageError = () => {
+    setImageError(true);
+  };
+
   const initial = name[0]?.toUpperCase() || "U";
 
   return (
     <div className="w-full flex flex-col border-t border-gray-100 relative">
       <div className="flex items-center w-full m-0">
-        {photo ? (
+        {photo && !imageError ? (
           <Image
             width={32}
             height={32}
             src={photo}
             alt="프로필"
             className="w-8 h-8 rounded-full object-cover border border-gray-200"
+            onError={handleImageError}
+            unoptimized={true}
           />
         ) : (
           <div className="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center text-base font-bold text-gray-600 border border-gray-200">
