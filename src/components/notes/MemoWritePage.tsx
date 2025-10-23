@@ -199,7 +199,7 @@ const MemoWritePage: React.FC<MemoWritePageProps> = ({
       <div className="sticky bottom-0 left-0 right-0 w-full bg-white border-t border-gray-100 shadow-[0_-2px_8px_0_rgba(0,0,0,0.03)] z-20 flex items-center justify-center px-4 py-4">
         <div className="w-full max-w-2xl flex gap-2">
           <button
-            className="flex-1 px-2 py-2 text-sm bg-gray-100 text-gray-700 font-bold shadow-none hover:bg-gray-200 transition"
+            className="flex-1 px-2 py-2 text-sm bg-gray-100 text-gray-700 rounded-xl font-bold shadow-none hover:bg-gray-200 transition"
             onClick={async () => {
               await handleAutoSave();
               onClose();
