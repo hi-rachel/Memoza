@@ -17,6 +17,15 @@ export function useDday() {
 
   const supabase = createClient();
 
+  /** 이벤트를 event_date 기준으로 오름차순 정렬하는 헬퍼 함수 */
+  const sortEventsByDate = (eventsList: DdayEvent[]): DdayEvent[] => {
+    return [...eventsList].sort((a, b) => {
+      const dateA = new Date(a.event_date).getTime();
+      const dateB = new Date(b.event_date).getTime();
+      return dateA - dateB;
+    });
+  };
+
   // D-day 이벤트 목록 가져오기
   const fetchEvents = async () => {
     if (!user) return;
@@ -71,7 +80,7 @@ export function useDday() {
         throw new Error("D-day 이벤트 생성에 실패했습니다.");
       }
 
-      setEvents((prev) => [...prev, data]);
+      setEvents((prev) => sortEventsByDate([...prev, data]));
       return { data, error: null };
     } catch (err) {
       console.error("D-day 이벤트 생성 예외:", err);
@@ -100,7 +109,7 @@ export function useDday() {
       }
 
       setEvents((prev) =>
-        prev.map((event) => (event.id === id ? data : event))
+        sortEventsByDate(prev.map((event) => (event.id === id ? data : event)))
       );
       return { data, error: null };
     } catch (err) {
@@ -155,11 +164,17 @@ export function useDday() {
         },
         (payload) => {
           if (payload.eventType === "INSERT") {
-            setEvents((prev) => [...prev, payload.new as DdayEvent]);
+            setEvents((prev) =>
+              sortEventsByDate([...prev, payload.new as DdayEvent])
+            );
           } else if (payload.eventType === "UPDATE") {
             setEvents((prev) =>
-              prev.map((event) =>
-                event.id === payload.new.id ? (payload.new as DdayEvent) : event
+              sortEventsByDate(
+                prev.map((event) =>
+                  event.id === payload.new.id
+                    ? (payload.new as DdayEvent)
+                    : event
+                )
               )
             );
           } else if (payload.eventType === "DELETE") {
