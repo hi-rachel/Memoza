@@ -48,3 +48,7 @@ next-env.d.ts
 # backup files
 /backups/
 *.json.backup
+
+schemas.sql
+
+cursor.md
