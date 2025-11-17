@@ -388,13 +388,30 @@ export default function DdayWidget() {
           open={showTagModal}
           onClose={() => setShowTagModal(false)}
           onCreate={async (name: string, color: string) => {
+            const normalized = name.trim().toLowerCase();
+            const exists = allTags.some(
+              (t) => t.name.trim().toLowerCase() === normalized
+            );
+            if (exists) {
+              showAlertMessage("이미 같은 이름의 태그가 있습니다.");
+              return;
+            }
+
             const result = await createTag(name, color);
-            if (result.data) {
-              // 새로 생성된 태그를 선택된 태그에 추가
+            if (result.data?.id) {
+              const newId = result.data.id;
+              if (showEditForm && editingEvent) {
+                setEditingEvent({
+                  ...editingEvent,
+                  tags: [...editingEvent.tags, newId],
+                });
+              } else {
               setNewEvent({
                 ...newEvent,
-                tags: [...newEvent.tags, result.data.id],
+                  tags: [...newEvent.tags, newId],
               });
+              }
+              setShowTagModal(false);
             }
           }}
         />

@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/client";
 import { useAuthUser } from "@/hooks/useAuthUser";
 import { useTags } from "@/hooks/useTags";
 import TagSelector from "@/components/tags/TagSelector";
+import { getDisplayTags } from "@/lib/tagDisplay";
 import TagCreateModal from "@/components/tags/TagCreateModal";
 import {
   FiEdit2,
@@ -22,23 +23,14 @@ import UserInfoPanel from "@/components/ui/UserInfoPanel";
 import MemoWritePage from "@/components/notes/MemoWritePage";
 import AlertModal from "@/components/ui/AlertModal";
 import DdayWidget from "@/components/ui/DdayWidget";
-
-interface Memo {
-  id: string;
-  title: string;
-  content: string;
-  tags: string[];
-  is_starred: boolean;
-  created_at: string;
-  updated_at: string;
-}
+import type { BasicMemo } from "@/types/memo";
 
 export default function NotesHome() {
   const { user } = useAuthUser();
   // 입력 상태 분리
   const [title, setTitle] = useState("");
   const [body, setBody] = useState("");
-  const [memos, setMemos] = useState<Memo[]>([]);
+  const [memos, setMemos] = useState<BasicMemo[]>([]);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
@@ -186,7 +178,13 @@ export default function NotesHome() {
     if (user) fetchMemos();
   }, [user]);
 
-  const { tags: allTags, createTag, updateTag, deleteTag } = useTags();
+  const {
+    tags: allTags,
+    createTag,
+    updateTag,
+    deleteTag,
+    ensureImportantTag,
+  } = useTags();
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   // 태그 필터 상태 추가
   const [filterTag, setFilterTag] = useState<string>("all");
@@ -441,36 +439,33 @@ export default function NotesHome() {
                   {allTags.filter((t) => !t.is_important).length === 0 && (
                     <li className="text-gray-400 py-2">태그 없음</li>
                   )}
-                  {[...allTags]
-                    .filter((t) => !t.is_important)
-                    .sort((a, b) => (b.id > a.id ? 1 : -1))
-                    .map((tag) => (
-                      <li
-                        key={tag.id}
-                        className={`flex items-center gap-2 py-2 cursor-pointer transition ${
-                          filterTag === tag.id
-                            ? "font-bold text-black bg-gray-100"
-                            : "text-gray-700 bg-white"
-                        }`}
-                        onClick={() => {
-                          if (!tagEditMode) {
-                            setFilterTag(tag.id);
-                            setTagSidebarOpen(false);
-                          }
-                        }}
-                      >
-                        <span
-                          className="inline-block w-3 h-3 rounded-full mr-1"
-                          style={{ backgroundColor: tag.color }}
-                        />
-                        <span className="flex items-center">
-                          <span>{tag.name}</span>
-                        </span>
-                        <span className="ml-auto text-xs text-gray-400 font-normal pl-2 select-none">
-                          {memos.filter((m) => m.tags?.includes(tag.id)).length}
-                        </span>
-                      </li>
-                    ))}
+                  {getDisplayTags(allTags).map((tag) => (
+                    <li
+                      key={tag.id}
+                      className={`flex items-center gap-2 py-2 cursor-pointer transition ${
+                        filterTag === tag.id
+                          ? "font-bold text-black bg-gray-100"
+                          : "text-gray-700 bg-white"
+                      }`}
+                      onClick={() => {
+                        if (!tagEditMode) {
+                          setFilterTag(tag.id);
+                          setTagSidebarOpen(false);
+                        }
+                      }}
+                    >
+                      <span
+                        className="inline-block w-3 h-3 rounded-full mr-1"
+                        style={{ backgroundColor: tag.color }}
+                      />
+                      <span className="flex items-center">
+                        <span>{tag.name}</span>
+                      </span>
+                      <span className="ml-auto text-xs text-gray-400 font-normal pl-2 select-none">
+                        {memos.filter((m) => m.tags?.includes(tag.id)).length}
+                      </span>
+                    </li>
+                  ))}
                 </ul>
               </>
             )}
@@ -494,7 +489,7 @@ export default function NotesHome() {
                 onClick={async () => {
                   let tagId = importantTag?.id;
                   if (!tagId) {
-                    const result = await createTag("중요", "#facc15");
+                    const result = await ensureImportantTag();
                     tagId = result.data?.id;
                     if (!tagId) return;
                   }
@@ -577,21 +572,19 @@ export default function NotesHome() {
                 </button>
               )}
               {/* 나머지 태그 */}
-              {allTags
-                .filter((t) => !t.is_important)
-                .map((tag) => (
-                  <button
-                    key={tag.id}
-                    className={`px-3 py-1 rounded-sm text-sm font-semibold border transition-colors duration-150 shadow-sm border-border text-gray-600  shrink-0 max-w-[100px] truncate ${
-                      filterTag === tag.id
-                        ? "bg-black text-white"
-                        : "bg-bg hover:bg-gray-200 hover:text-black"
-                    }`}
-                    onClick={() => setFilterTag(tag.id)}
-                  >
-                    {tag.name}
-                  </button>
-                ))}
+              {getDisplayTags(allTags).map((tag) => (
+                <button
+                  key={tag.id}
+                  className={`px-3 py-1 rounded-sm text-sm font-semibold border transition-colors duration-150 shadow-sm border-border text-gray-600  shrink-0 max-w-[100px] truncate ${
+                    filterTag === tag.id
+                      ? "bg-black text-white"
+                      : "bg-bg hover:bg-gray-200 hover:text-black"
+                  }`}
+                  onClick={() => setFilterTag(tag.id)}
+                >
+                  {tag.name}
+                </button>
+              ))}
             </div>
           </div>
           {error && (
@@ -695,27 +688,6 @@ export default function NotesHome() {
                               setSelectedTags(tags);
                             }}
                             onAddTag={() => setShowTagModal(true)}
-                          />
-                          <TagCreateModal
-                            open={showTagModal}
-                            onClose={() => setShowTagModal(false)}
-                            onCreate={async (name, color) => {
-                              // 이미 같은 이름(공백제거, 대소문자 무시) 태그가 있으면 생성 불가
-                              const normalized = name.trim().toLowerCase();
-                              const exists = allTags.some(
-                                (t) =>
-                                  t.name.trim().toLowerCase() === normalized
-                              );
-                              if (exists) {
-                                setAlertMsg(
-                                  "이미 같은 이름의 태그가 있습니다."
-                                );
-                                return;
-                              }
-                              const result = await createTag(name, color);
-                              if (!result.data?.id) return;
-                              setPendingTagId(result.data.id); // setSelectedTags는 호출하지 않음
-                            }}
                           />
                           <div className="flex gap-2">
                             <button

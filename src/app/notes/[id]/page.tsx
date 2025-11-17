@@ -1,27 +1,21 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import React from "react";
 import { useRouter, useParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { useAuthUser } from "@/hooks/useAuthUser";
 import { useTags } from "@/hooks/useTags";
+import type { BasicMemo } from "@/types/memo";
 import TagSelector from "@/components/tags/TagSelector";
+import TagCreateModal from "@/components/tags/TagCreateModal";
+import AlertModal from "@/components/ui/AlertModal";
 import { FiChevronLeft, FiStar } from "react-icons/fi";
-
-export interface Memo {
-  id: string;
-  title: string;
-  content: string;
-  tags: string[];
-  is_starred: boolean;
-  created_at: string;
-  updated_at: string;
-}
 
 export default function MemoDetailPage() {
   const params = useParams();
   const memoId = params.id as string;
-  const [memo, setMemo] = useState<Memo | null>(null);
+  const [memo, setMemo] = useState<BasicMemo | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [autoSaveTimeout, setAutoSaveTimeout] = useState<NodeJS.Timeout | null>(
@@ -29,7 +23,9 @@ export default function MemoDetailPage() {
   );
   const router = useRouter();
   const { user } = useAuthUser();
-  const { tags } = useTags();
+  const { tags, createTag, ensureImportantTag } = useTags();
+  const [showTagModal, setShowTagModal] = useState(false);
+  const [alertMsg, setAlertMsg] = useState("");
 
   // 중요 태그 찾기
   const importantTag = tags.find((t) => t.is_important);
@@ -40,7 +36,7 @@ export default function MemoDetailPage() {
     const supabase = createClient();
     const { data, error } = await supabase
       .from("memos")
-      .select("*")
+      .select("id,title,content,tags,is_starred,created_at,updated_at")
       .eq("id", memoId)
       .eq("user_id", user.id)
       .single();
@@ -61,7 +57,7 @@ export default function MemoDetailPage() {
     }
   }, [user, memoId]);
 
-  const saveMemo = async (updates: Partial<Memo>) => {
+  const saveMemo = async (updates: Partial<BasicMemo>) => {
     if (!user || !memo) return;
 
     setSaving(true);
@@ -80,7 +76,7 @@ export default function MemoDetailPage() {
     setSaving(false);
   };
 
-  const handleAutoSave = (updates: Partial<Memo>) => {
+  const handleAutoSave = (updates: Partial<BasicMemo>) => {
     if (autoSaveTimeout) {
       clearTimeout(autoSaveTimeout);
     }
@@ -129,45 +125,15 @@ export default function MemoDetailPage() {
 
   const toggleStar = async () => {
     if (!memo || !user) return;
-
-    // 중요 태그 찾기
-    const importantTag = tags.find((t) => t.is_important);
-    if (!importantTag) {
-      // 중요 태그가 없으면 생성
-      const supabase = createClient();
-      const { data: newTag } = await supabase
-        .from("tags")
-        .insert([
-          {
-            name: "중요",
-            color: "#facc15",
-            user_id: user.id,
-            is_important: true,
-            is_default: false,
-            is_deletable: false,
-          },
-        ])
-        .select()
-        .single();
-
-      if (!newTag) return;
-
-      // 새로 생성된 중요 태그를 tags 배열에 추가
-      const updatedTags = [...memo.tags, newTag.id];
-      const updatedMemo = { ...memo, tags: updatedTags };
-      setMemo(updatedMemo);
-      saveMemo({ tags: updatedTags });
-    } else {
-      // 중요 태그가 있으면 토글
-      const hasImportantTag = memo.tags.includes(importantTag.id);
-      const updatedTags = hasImportantTag
-        ? memo.tags.filter((id) => id !== importantTag.id)
-        : [...memo.tags, importantTag.id];
-
-      const updatedMemo = { ...memo, tags: updatedTags };
-      setMemo(updatedMemo);
-      saveMemo({ tags: updatedTags });
-    }
+    const { data: ensuredTag } = await ensureImportantTag();
+    if (!ensuredTag) return;
+    const hasImportantTag = memo.tags.includes(ensuredTag.id);
+    const updatedTags = hasImportantTag
+      ? memo.tags.filter((id) => id !== ensuredTag.id)
+      : [...memo.tags, ensuredTag.id];
+    const updatedMemo = { ...memo, tags: updatedTags };
+    setMemo(updatedMemo);
+    saveMemo({ tags: updatedTags });
   };
 
   const deleteMemo = async () => {
@@ -259,12 +225,44 @@ export default function MemoDetailPage() {
               return tag && !tag.is_important;
             })}
             onChange={handleTagsChange}
+            onAddTag={() => setShowTagModal(true)}
           />
           <span className="text-sm text-gray-500 ml-4">
             {saving ? "저장 중..." : "저장됨"}
           </span>
         </div>
       </div>
+
+      {/* 새 태그 만들기 모달 */}
+      <TagCreateModal
+        open={showTagModal}
+        onClose={() => setShowTagModal(false)}
+        onCreate={async (name, color) => {
+          const normalized = name.trim().toLowerCase();
+          const exists = tags.some(
+            (t) => t.name.trim().toLowerCase() === normalized
+          );
+          if (exists) {
+            setAlertMsg("이미 같은 이름의 태그가 있습니다.");
+            return;
+          }
+          const result = await createTag(name, color);
+          const newId = result.data?.id;
+          if (!newId || !memo) return;
+          const updated = Array.from(new Set([...(memo.tags || []), newId]));
+          setMemo({ ...memo, tags: updated });
+          await saveMemo({ tags: updated });
+          setShowTagModal(false);
+        }}
+      />
+
+      {/* 중복 태그명 등 알림 */}
+      <AlertModal
+        open={!!alertMsg}
+        title="알림"
+        description={alertMsg}
+        onClose={() => setAlertMsg("")}
+      />
 
       {/* 메모 내용 */}
       <div className="p-4">

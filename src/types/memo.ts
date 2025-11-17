@@ -46,6 +46,18 @@ export interface Memo {
   searchable_text?: string;
 }
 
+// 현재 UI에서 사용하는 경량 메모 타입 (AI/메타 필드 제외)
+export type BasicMemo = Pick<
+  Memo,
+  | "id"
+  | "title"
+  | "content"
+  | "tags"
+  | "is_starred"
+  | "created_at"
+  | "updated_at"
+>;
+
 export interface TagInfo {
   id: string;
   name: string;

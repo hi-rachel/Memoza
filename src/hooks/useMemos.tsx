@@ -3,15 +3,17 @@
 import { useState, useEffect } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { useAuthUser } from "./useAuthUser";
-import type { Memo, MemosByTagResult } from "@/types/memo";
+import type { BasicMemo, Memo, MemosByTagResult } from "@/types/memo";
 import {
   extractKeywords,
   detectLanguage,
   analyzeSentiment,
 } from "@/lib/memoUtils";
 
+type MemoLite = BasicMemo & { tag_names?: string[] };
+
 export function useMemos() {
-  const [memos, setMemos] = useState<Memo[]>([]);
+  const [memos, setMemos] = useState<MemoLite[]>([]);
   const [loading, setLoading] = useState(true);
   const { user } = useAuthUser();
 
@@ -21,7 +23,7 @@ export function useMemos() {
     const supabase = createClient();
     const { data, error } = await supabase
       .from("memos")
-      .select("*")
+      .select("id,title,content,tags,is_starred,created_at,updated_at")
       .eq("user_id", user.id)
       .order("updated_at", { ascending: false });
 
@@ -178,7 +180,7 @@ export function useMemos() {
     return { data };
   };
 
-  // 🎯 태그별 메모 검색 (새로운 기능!)
+  // 태그별 메모 검색
   const getMemosByTag = async (
     tagName: string,
     limit: number = 50
@@ -221,14 +223,14 @@ export function useMemos() {
   };
 
   // 태그 이름으로 메모 필터링 (클라이언트 사이드)
-  const filterMemosByTagName = (tagName: string): Memo[] => {
+  const filterMemosByTagName = (tagName: string): MemoLite[] => {
     return memos.filter(
       (memo) => memo.tag_names && memo.tag_names.includes(tagName)
     );
   };
 
   // 태그 ID로 메모 필터링 (클라이언트 사이드)
-  const filterMemosByTagId = (tagId: string): Memo[] => {
+  const filterMemosByTagId = (tagId: string): MemoLite[] => {
     return memos.filter((memo) => memo.tags && memo.tags.includes(tagId));
   };
 
@@ -262,11 +264,11 @@ export function useMemos() {
     deleteMemo,
     toggleStar,
     searchMemos,
-    getMemosByTag, // 🎯 새로운 기능!
-    getMemoCountByTag, // 🎯 새로운 기능!
-    filterMemosByTagName, // 🎯 새로운 기능!
-    filterMemosByTagId, // 🎯 새로운 기능!
-    searchMemosByTagPartial, // 🎯 새로운 기능!
+    getMemosByTag,
+    getMemoCountByTag,
+    filterMemosByTagName,
+    filterMemosByTagId,
+    searchMemosByTagPartial,
     refetch: fetchMemos,
   };
 }
