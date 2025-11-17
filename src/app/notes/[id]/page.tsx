@@ -14,7 +14,7 @@ import { FiChevronLeft, FiStar } from "react-icons/fi";
 
 export default function MemoDetailPage() {
   const params = useParams();
-  const memoId = params.id as string;
+  const memoId = params?.id as string | undefined;
   const [memo, setMemo] = useState<BasicMemo | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -30,32 +30,38 @@ export default function MemoDetailPage() {
   // 중요 태그 찾기
   const importantTag = tags.find((t) => t.is_important);
 
-  const fetchMemo = async () => {
-    if (!user) return;
-
-    const supabase = createClient();
-    const { data, error } = await supabase
-      .from("memos")
-      .select("id,title,content,tags,is_starred,created_at,updated_at")
-      .eq("id", memoId)
-      .eq("user_id", user.id)
-      .single();
-
-    if (error) {
-      console.error("메모 가져오기 오류:", error);
+  useEffect(() => {
+    if (!memoId) {
       router.push("/notes");
       return;
     }
 
-    setMemo(data);
-    setLoading(false);
-  };
-
-  useEffect(() => {
-    if (user) {
-      fetchMemo();
+    if (!user) {
+      setLoading(true);
+      return;
     }
-  }, [user, memoId]);
+
+    const fetchMemo = async () => {
+      const supabase = createClient();
+      const { data, error } = await supabase
+        .from("memos")
+        .select("id,title,content,tags,is_starred,created_at,updated_at")
+        .eq("id", memoId)
+        .eq("user_id", user.id)
+        .single();
+
+      if (error) {
+        console.error("메모 가져오기 오류:", error);
+        router.push("/notes");
+        return;
+      }
+
+      setMemo(data);
+      setLoading(false);
+    };
+
+    fetchMemo();
+  }, [user, memoId, router]);
 
   const saveMemo = async (updates: Partial<BasicMemo>) => {
     if (!user || !memo) return;
