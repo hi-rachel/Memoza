@@ -256,7 +256,13 @@ export default function MemoDetailPage() {
           const result = await createTag(name, color);
           const newId = result.data?.id;
           if (!newId || !memo) return;
-          const updated = Array.from(new Set([...(memo.tags || []), newId]));
+          // 중요 태그는 유지하고, 일반 태그는 새로 생성한 태그만 적용 (1개만)
+          const importantTagIds = (memo.tags || []).filter((id) => {
+            const tag = tags.find((t) => t.id === id);
+            return tag && tag.is_important;
+          });
+          // 중요 태그 + 새로 생성한 태그만 적용
+          const updated = Array.from(new Set([...importantTagIds, newId]));
           setMemo({ ...memo, tags: updated });
           await saveMemo({ tags: updated });
           setShowTagModal(false);
