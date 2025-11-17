@@ -5,7 +5,7 @@ import { createClient } from "@/lib/supabase/client";
 import { useAuthUser } from "@/hooks/useAuthUser";
 import { useTags } from "@/hooks/useTags";
 import TagSelector from "@/components/tags/TagSelector";
-import { getDisplayTags } from "@/lib/tagDisplay";
+import { getDisplayTags, sortTags } from "@/lib/tagDisplay";
 import TagCreateModal from "@/components/tags/TagCreateModal";
 import {
   FiEdit2,
@@ -299,9 +299,8 @@ export default function NotesHome() {
                   // defaultTagId는 위에서 추적
                   return (
                     <ul className="flex-1 overflow-y-auto px-4">
-                      {[...allTags]
+                      {sortTags(allTags)
                         .filter((t) => !t.is_important)
-                        .sort((a, b) => (b.id > a.id ? 1 : -1))
                         .map((tag) => (
                           <li
                             key={tag.id}

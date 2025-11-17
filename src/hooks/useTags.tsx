@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { useAuthUser } from "./useAuthUser";
+import { sortTags } from "@/lib/tagDisplay";
 import type { Tag } from "@/types/memo";
 
 export function useTags() {
@@ -26,7 +27,8 @@ export function useTags() {
       return;
     }
 
-    setTags(data || []);
+    // 클라이언트 측에서도 정렬하여 일관성 유지
+    setTags(sortTags(data || []));
     setLoading(false);
   };
 
@@ -58,7 +60,7 @@ export function useTags() {
       return { error };
     }
 
-    setTags((prev) => [data, ...prev]);
+    setTags((prev) => sortTags([...prev, data]));
     return { data };
   };
 
@@ -94,7 +96,9 @@ export function useTags() {
       return { error };
     }
 
-    setTags((prev) => prev.map((tag) => (tag.id === id ? data : tag)));
+    setTags((prev) =>
+      sortTags(prev.map((tag) => (tag.id === id ? data : tag)))
+    );
     return { data };
   };
 
@@ -196,7 +200,7 @@ export function useTags() {
       return { error };
     }
 
-    setTags((prev) => [data, ...prev]);
+    setTags((prev) => sortTags([...prev, data]));
     return { data };
   };
 
@@ -250,7 +254,7 @@ export function useTags() {
       return { error };
     }
 
-    setTags((prev) => [data, ...prev]);
+    setTags((prev) => sortTags([...prev, data]));
     return { data };
   };
 
