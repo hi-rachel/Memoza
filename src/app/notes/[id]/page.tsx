@@ -10,6 +10,7 @@ import type { BasicMemo } from "@/types/memo";
 import TagSelector from "@/components/tags/TagSelector";
 import TagCreateModal from "@/components/tags/TagCreateModal";
 import AlertModal from "@/components/ui/AlertModal";
+import Spinner from "@/components/ui/Spinner";
 import { FiChevronLeft, FiStar } from "react-icons/fi";
 
 export default function MemoDetailPage() {
@@ -170,8 +171,8 @@ export default function MemoDetailPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-gray-500">로딩 중...</div>
+      <div className="min-h-screen bg-gray-50">
+        <Spinner fullScreen />
       </div>
     );
   }

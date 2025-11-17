@@ -3,6 +3,7 @@
 import { useEffect } from "react";
 import { useAuthUser } from "@/hooks/useAuthUser";
 import { useRouter } from "next/navigation";
+import Spinner from "@/components/ui/Spinner";
 
 export default function AuthLayout({
   children,
@@ -19,11 +20,7 @@ export default function AuthLayout({
   }, [user, loading, router]);
 
   if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-lg">로딩 중...</div>
-      </div>
-    );
+    return <Spinner fullScreen size="lg" />;
   }
 
   if (user) {

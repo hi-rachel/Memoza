@@ -23,6 +23,7 @@ import UserInfoPanel from "@/components/ui/UserInfoPanel";
 import MemoWritePage from "@/components/notes/MemoWritePage";
 import AlertModal from "@/components/ui/AlertModal";
 import DdayWidget from "@/components/ui/DdayWidget";
+import Skeleton from "@/components/ui/Skeleton";
 import type { BasicMemo } from "@/types/memo";
 
 export default function NotesHome() {
@@ -32,7 +33,8 @@ export default function NotesHome() {
   const [body, setBody] = useState("");
   const [memos, setMemos] = useState<BasicMemo[]>([]);
   const [error, setError] = useState("");
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true); // 초기 로딩 상태를 true로 변경
+  const [mounted, setMounted] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
   // 수정 상태 분리
   const [editTitle, setEditTitle] = useState("");
@@ -175,11 +177,16 @@ export default function NotesHome() {
   };
 
   useEffect(() => {
-    if (user) fetchMemos();
-  }, [user]);
+    setMounted(true);
+  }, []);
+
+  useEffect(() => {
+    if (user && mounted) fetchMemos();
+  }, [user, mounted]);
 
   const {
     tags: allTags,
+    loading: tagsLoading,
     createTag,
     updateTag,
     deleteTag,
@@ -532,297 +539,343 @@ export default function NotesHome() {
             }}
           />
         )}
-        <div className="p-4 flex flex-col items-center min-h-screen bg-bg text-text">
-          <div className="w-full flex justify-end pt-6 pb-2"></div>
-          {/* D-Day 위젯 */}
-          <div className="w-full max-w-5xl mx-auto mb-4">
-            <DdayWidget />
-          </div>
+        {!mounted ? null : (
+          <div className="p-4 flex flex-col items-center min-h-screen bg-bg text-text">
+            <div className="w-full flex justify-end pt-6 pb-2"></div>
+            {/* D-Day 위젯 */}
+            <div className="w-full max-w-5xl mx-auto mb-4">
+              <DdayWidget />
+            </div>
 
-          {/* 입력창 하단에 태그 필터 UI 추가 */}
-          {/* 태그 필터 버튼: 전체 → 중요 → 기본 → 나머지 */}
-          <div className="w-full max-w-5xl mx-auto mb-2 pr-2">
-            <div
-              className="overflow-x-auto scrollbar-hide flex flex-nowrap gap-2 min-w-0 whitespace-nowrap"
-              style={{ scrollBehavior: "smooth" }}
-            >
-              {/* 태그 버튼들 */}
-              <button
-                className={`px-3 py-1 rounded-sm text-sm font-semibold border transition-colors duration-150 shadow-sm border-border text-gray-600 shrink-0 max-w-[100px] truncate ${
-                  filterTag === "all"
-                    ? "bg-black text-white"
-                    : "bg-bg hover:bg-gray-200 hover:text-black"
-                }`}
-                onClick={() => setFilterTag("all")}
+            {/* 입력창 하단에 태그 필터 UI 추가 */}
+            {/* 태그 필터 버튼: 전체 → 중요 → 기본 → 나머지 */}
+            <div className="w-full max-w-5xl mx-auto mb-2 pr-2">
+              <div
+                className="overflow-x-auto scrollbar-hide flex flex-nowrap gap-2 min-w-0 whitespace-nowrap"
+                style={{ scrollBehavior: "smooth" }}
               >
-                전체
-              </button>
-              {/* 중요 태그 */}
-              {importantTag && (
-                <button
-                  key={importantTag.id}
-                  className={`px-3 py-1 rounded-sm text-sm font-semibold border transition-colors duration-150 shadow-sm border-border text-gray-600 shrink-0 max-w-[100px] truncate ${
-                    filterTag === importantTag.id
-                      ? "bg-black text-white"
-                      : "bg-bg hover:bg-gray-200 hover:text-black"
-                  }`}
-                  onClick={() => setFilterTag(importantTag.id)}
-                >
-                  {importantTag.name}
-                </button>
-              )}
-              {/* 나머지 태그 */}
-              {getDisplayTags(allTags).map((tag) => (
-                <button
-                  key={tag.id}
-                  className={`px-3 py-1 rounded-sm text-sm font-semibold border transition-colors duration-150 shadow-sm border-border text-gray-600  shrink-0 max-w-[100px] truncate ${
-                    filterTag === tag.id
-                      ? "bg-black text-white"
-                      : "bg-bg hover:bg-gray-200 hover:text-black"
-                  }`}
-                  onClick={() => setFilterTag(tag.id)}
-                >
-                  {tag.name}
-                </button>
-              ))}
-            </div>
-          </div>
-          {error && (
-            <div className="text-red-500 text-sm mb-2 w-full max-w-5xl mx-auto">
-              {error}
-            </div>
-          )}
-          {/* 메모 목록: 전체 화면 넓게 */}
-          <div className="flex-1 w-full max-w-5xl mx-auto overflow-y-auto p-0 mt-2 custom-scrollbar">
-            {loading ? (
-              <div className="text-center text-blue-400 py-8 animate-pulse">
-                로딩 중...
-              </div>
-            ) : memos.length === 0 ? (
-              <div className="text-center text-gray-400 py-8">
-                메모가 없습니다.
-              </div>
-            ) : (
-              <>
-                {selectMode && (
-                  <div className="flex gap-2 mb-2">
+                {tagsLoading ? (
+                  <>
+                    {/* 전체 버튼 스켈레톤 */}
+                    <Skeleton
+                      variant="rectangular"
+                      width={60}
+                      height={28}
+                      className="rounded-sm shrink-0"
+                    />
+                    {/* 태그 버튼 스켈레톤들 */}
+                    {[...Array(4)].map((_, index) => (
+                      <Skeleton
+                        key={index}
+                        variant="rectangular"
+                        width={60}
+                        height={28}
+                        className="rounded-sm shrink-0"
+                      />
+                    ))}
+                  </>
+                ) : (
+                  <>
+                    {/* 태그 버튼들 */}
                     <button
-                      className="px-3 py-1 rounded bg-white text-gray-800 border border-gray-200 text-sm font-semibold hover:bg-gray-100 transition"
-                      onClick={() => {
-                        if (selectedMemoIds.length === filteredMemos.length) {
-                          setSelectedMemoIds([]);
-                        } else {
-                          setSelectedMemoIds(filteredMemos.map((m) => m.id!));
-                        }
-                      }}
-                    >
-                      전체{" "}
-                      {selectedMemoIds.length === filteredMemos.length
-                        ? "해제"
-                        : "선택"}
-                    </button>
-                    <button
-                      className="px-3 py-1 rounded bg-white text-gray-800 border border-gray-200 text-sm font-semibold hover:bg-gray-100 transition disabled:opacity-50"
-                      disabled={selectedMemoIds.length === 0}
-                      onClick={async () => {
-                        setMemos((prev) =>
-                          prev.filter((m) => !selectedMemoIds.includes(m.id!))
-                        );
-                        const idsToDelete = [...selectedMemoIds];
-                        setSelectedMemoIds([]);
-                        await Promise.all(
-                          idsToDelete.map((id) => handleDelete(id))
-                        );
-                        setSelectMode(false);
-                      }}
-                    >
-                      삭제
-                    </button>
-                  </div>
-                )}
-                <ul className="space-y-3 w-full">
-                  {filteredMemos.map((m) => (
-                    <li
-                      key={m.id}
-                      className={`py-3 bg-gray-50 flex justify-between items-center transition w-full rounded-sm p-4 ${
-                        itemLoading === m.id ? "opacity-50" : ""
+                      className={`px-3 py-1 rounded-sm text-sm font-semibold border transition-colors duration-150 shadow-sm border-border text-gray-600 shrink-0 max-w-[100px] truncate ${
+                        filterTag === "all"
+                          ? "bg-black text-white"
+                          : "bg-bg hover:bg-gray-200 hover:text-black"
                       }`}
+                      onClick={() => setFilterTag("all")}
                     >
-                      {selectMode && (
-                        <input
-                          type="checkbox"
-                          className="mr-3 w-5 h-5 accent-gray-700"
-                          checked={selectedMemoIds.includes(m.id!)}
-                          onChange={() => {
-                            setSelectedMemoIds((prev) =>
-                              prev.includes(m.id!)
-                                ? prev.filter((id) => id !== m.id)
-                                : [...prev, m.id!]
-                            );
-                          }}
-                          onClick={(e) => e.stopPropagation()}
-                        />
-                      )}
-                      {editId === m.id ? (
-                        <div className="flex-1 flex flex-col gap-2">
-                          <input
-                            className="w-full border-2 border-blue-200 rounded-xl p-2 focus:outline-none focus:border-blue-400 transition bg-blue-50 resize-none mb-2"
-                            placeholder="제목을 입력하세요"
-                            value={editTitle}
-                            onChange={(e) => setEditTitle(e.target.value)}
-                            maxLength={60}
-                            disabled={itemLoading === m.id}
+                      전체
+                    </button>
+                    {/* 중요 태그 */}
+                    {importantTag && (
+                      <button
+                        key={importantTag.id}
+                        className={`px-3 py-1 rounded-sm text-sm font-semibold border transition-colors duration-150 shadow-sm border-border text-gray-600 shrink-0 max-w-[100px] truncate ${
+                          filterTag === importantTag.id
+                            ? "bg-black text-white"
+                            : "bg-bg hover:bg-gray-200 hover:text-black"
+                        }`}
+                        onClick={() => setFilterTag(importantTag.id)}
+                      >
+                        {importantTag.name}
+                      </button>
+                    )}
+                    {/* 나머지 태그 */}
+                    {getDisplayTags(allTags).map((tag) => (
+                      <button
+                        key={tag.id}
+                        className={`px-3 py-1 rounded-sm text-sm font-semibold border transition-colors duration-150 shadow-sm border-border text-gray-600  shrink-0 max-w-[100px] truncate ${
+                          filterTag === tag.id
+                            ? "bg-black text-white"
+                            : "bg-bg hover:bg-gray-200 hover:text-black"
+                        }`}
+                        onClick={() => setFilterTag(tag.id)}
+                      >
+                        {tag.name}
+                      </button>
+                    ))}
+                  </>
+                )}
+              </div>
+            </div>
+            {error && (
+              <div className="text-red-500 text-sm mb-2 w-full max-w-5xl mx-auto">
+                {error}
+              </div>
+            )}
+            {/* 메모 목록: 전체 화면 넓게 */}
+            <div className="flex-1 w-full max-w-5xl mx-auto overflow-y-auto p-0 mt-2 custom-scrollbar">
+              {loading ? (
+                <ul className="space-y-3 w-full">
+                  {[...Array(3)].map((_, index) => (
+                    <li
+                      key={index}
+                      className="py-3 bg-gray-50 flex justify-between items-center transition w-full rounded-sm p-4"
+                    >
+                      <div className="flex-1 min-w-0 space-y-2">
+                        <Skeleton variant="text" width="70%" height={20} />
+                        <Skeleton variant="text" width="100%" height={16} />
+                        <Skeleton variant="text" width="80%" height={16} />
+                        <div className="flex items-center gap-2 mt-2">
+                          <Skeleton
+                            variant="rectangular"
+                            width={60}
+                            height={20}
                           />
-                          <textarea
-                            className="w-full border-2 border-blue-200 rounded-xl p-2 focus:outline-none focus:border-blue-400 transition bg-blue-50 resize-none"
-                            rows={2}
-                            placeholder="본문을 입력하세요"
-                            value={editBody}
-                            onChange={(e) => setEditBody(e.target.value)}
-                            disabled={itemLoading === m.id}
-                          />
-                          <TagSelector
-                            tags={allTags}
-                            selected={selectedTags}
-                            onChange={(tags) => {
-                              setSelectedTags(tags);
-                            }}
-                            onAddTag={() => setShowTagModal(true)}
-                          />
-                          <div className="flex gap-2">
-                            <button
-                              className="flex-1 px-2 py-1 text-xs bg-gray-700 text-gray-100 rounded-xl font-semibold shadow-sm hover:bg-gray-800 transition"
-                              onClick={handleEditSave}
-                              disabled={
-                                itemLoading === m.id ||
-                                !editTitle.trim() ||
-                                !editBody.trim()
-                              }
-                            >
-                              저장
-                            </button>
-                            <button
-                              className="flex-1 px-2 py-1 text-xs bg-gray-100 text-gray-700 rounded-xl font-bold shadow-none border border-gray-200 hover:bg-gray-200 transition"
-                              onClick={handleEditCancel}
-                              disabled={itemLoading === m.id}
-                            >
-                              취소
-                            </button>
-                          </div>
+                          <Skeleton variant="text" width={40} height={12} />
                         </div>
-                      ) : (
-                        <Link
-                          href={`/notes/${m.id}`}
-                          className="flex w-full group cursor-pointer"
-                        >
-                          <div className="flex-1 min-w-0">
-                            {m.title && (
-                              <div className="font-bold text-lg text-text mb-1 truncate">
-                                {m.title}
-                              </div>
-                            )}
-                            <div
-                              className="text-gray-800 break-words whitespace-pre-line font-medium line-clamp-3"
-                              style={{
-                                display: "-webkit-box",
-                                WebkitLineClamp: 3,
-                                WebkitBoxOrient: "vertical",
-                                overflow: "hidden",
-                              }}
-                              dangerouslySetInnerHTML={{
-                                __html: m.content ?? "",
-                              }}
-                            />
-                            {/* 날짜와 태그 뱃지 flex-row, 태그가 왼쪽, 날짜가 오른쪽 */}
-                            <div className="text-xs text-gray-400 mt-1 flex items-center gap-2 flex-row overflow-hidden whitespace-nowrap text-ellipsis max-w-full">
-                              {m.tags?.map((tagId) => {
-                                const tag = allTags.find((t) => t.id === tagId);
-                                // 중요 태그는 뱃지로 표시하지 않음
-                                if (!tag || tag.is_important) return null;
-                                return (
-                                  <span
-                                    key={tagId}
-                                    className="px-2 py-0.5 rounded-full text-xs font-semibold border flex items-center gap-1 bg-bg border-border text-text"
-                                  >
-                                    <span
-                                      className="inline-block w-2.5 h-2.5 rounded-full mr-1"
-                                      style={{
-                                        backgroundColor: tag.color,
-                                      }}
-                                    />
-                                    {tag.name}
-                                  </span>
-                                );
-                              })}
-                              {/* 중요 태그가 있으면 별 표시 */}
-                              {importantTag &&
-                                m.tags?.includes(importantTag.id) && (
-                                  <FiStar
-                                    size={16}
-                                    className="ml-1 text-yellow-400"
-                                    fill="#facc15"
-                                  />
-                                )}
-                              {(() => {
-                                const date = new Date(m.updated_at);
-                                const mm = String(date.getMonth() + 1).padStart(
-                                  2,
-                                  "0"
-                                );
-                                const dd = String(date.getDate()).padStart(
-                                  2,
-                                  "0"
-                                );
-                                return `${mm}.${dd}`;
-                              })()}
-                            </div>
-                          </div>
-                        </Link>
-                      )}
+                      </div>
                     </li>
                   ))}
                 </ul>
-              </>
-            )}
+              ) : memos.length === 0 ? (
+                <div className="text-center text-gray-400 py-8">
+                  메모가 없습니다.
+                </div>
+              ) : (
+                <>
+                  {selectMode && (
+                    <div className="flex gap-2 mb-2">
+                      <button
+                        className="px-3 py-1 rounded bg-white text-gray-800 border border-gray-200 text-sm font-semibold hover:bg-gray-100 transition"
+                        onClick={() => {
+                          if (selectedMemoIds.length === filteredMemos.length) {
+                            setSelectedMemoIds([]);
+                          } else {
+                            setSelectedMemoIds(filteredMemos.map((m) => m.id!));
+                          }
+                        }}
+                      >
+                        전체{" "}
+                        {selectedMemoIds.length === filteredMemos.length
+                          ? "해제"
+                          : "선택"}
+                      </button>
+                      <button
+                        className="px-3 py-1 rounded bg-white text-gray-800 border border-gray-200 text-sm font-semibold hover:bg-gray-100 transition disabled:opacity-50"
+                        disabled={selectedMemoIds.length === 0}
+                        onClick={async () => {
+                          setMemos((prev) =>
+                            prev.filter((m) => !selectedMemoIds.includes(m.id!))
+                          );
+                          const idsToDelete = [...selectedMemoIds];
+                          setSelectedMemoIds([]);
+                          await Promise.all(
+                            idsToDelete.map((id) => handleDelete(id))
+                          );
+                          setSelectMode(false);
+                        }}
+                      >
+                        삭제
+                      </button>
+                    </div>
+                  )}
+                  <ul className="space-y-3 w-full">
+                    {filteredMemos.map((m) => (
+                      <li
+                        key={m.id}
+                        className={`py-3 bg-gray-50 flex justify-between items-center transition w-full rounded-sm p-4 ${
+                          itemLoading === m.id ? "opacity-50" : ""
+                        }`}
+                      >
+                        {selectMode && (
+                          <input
+                            type="checkbox"
+                            className="mr-3 w-5 h-5 accent-gray-700"
+                            checked={selectedMemoIds.includes(m.id!)}
+                            onChange={() => {
+                              setSelectedMemoIds((prev) =>
+                                prev.includes(m.id!)
+                                  ? prev.filter((id) => id !== m.id)
+                                  : [...prev, m.id!]
+                              );
+                            }}
+                            onClick={(e) => e.stopPropagation()}
+                          />
+                        )}
+                        {editId === m.id ? (
+                          <div className="flex-1 flex flex-col gap-2">
+                            <input
+                              className="w-full border-2 border-blue-200 rounded-xl p-2 focus:outline-none focus:border-blue-400 transition bg-blue-50 resize-none mb-2"
+                              placeholder="제목을 입력하세요"
+                              value={editTitle}
+                              onChange={(e) => setEditTitle(e.target.value)}
+                              maxLength={60}
+                              disabled={itemLoading === m.id}
+                            />
+                            <textarea
+                              className="w-full border-2 border-blue-200 rounded-xl p-2 focus:outline-none focus:border-blue-400 transition bg-blue-50 resize-none"
+                              rows={2}
+                              placeholder="본문을 입력하세요"
+                              value={editBody}
+                              onChange={(e) => setEditBody(e.target.value)}
+                              disabled={itemLoading === m.id}
+                            />
+                            <TagSelector
+                              tags={allTags}
+                              selected={selectedTags}
+                              onChange={(tags) => {
+                                setSelectedTags(tags);
+                              }}
+                              onAddTag={() => setShowTagModal(true)}
+                            />
+                            <div className="flex gap-2">
+                              <button
+                                className="flex-1 px-2 py-1 text-xs bg-gray-700 text-gray-100 rounded-xl font-semibold shadow-sm hover:bg-gray-800 transition"
+                                onClick={handleEditSave}
+                                disabled={
+                                  itemLoading === m.id ||
+                                  !editTitle.trim() ||
+                                  !editBody.trim()
+                                }
+                              >
+                                저장
+                              </button>
+                              <button
+                                className="flex-1 px-2 py-1 text-xs bg-gray-100 text-gray-700 rounded-xl font-bold shadow-none border border-gray-200 hover:bg-gray-200 transition"
+                                onClick={handleEditCancel}
+                                disabled={itemLoading === m.id}
+                              >
+                                취소
+                              </button>
+                            </div>
+                          </div>
+                        ) : (
+                          <Link
+                            href={`/notes/${m.id}`}
+                            className="flex w-full group cursor-pointer"
+                          >
+                            <div className="flex-1 min-w-0">
+                              {m.title && (
+                                <div className="font-bold text-lg text-text mb-1 truncate">
+                                  {m.title}
+                                </div>
+                              )}
+                              <div
+                                className="text-gray-800 break-words whitespace-pre-line font-medium line-clamp-3"
+                                style={{
+                                  display: "-webkit-box",
+                                  WebkitLineClamp: 3,
+                                  WebkitBoxOrient: "vertical",
+                                  overflow: "hidden",
+                                }}
+                                dangerouslySetInnerHTML={{
+                                  __html: m.content ?? "",
+                                }}
+                              />
+                              {/* 날짜와 태그 뱃지 flex-row, 태그가 왼쪽, 날짜가 오른쪽 */}
+                              <div className="text-xs text-gray-400 mt-1 flex items-center gap-2 flex-row overflow-hidden whitespace-nowrap text-ellipsis max-w-full">
+                                {m.tags?.map((tagId) => {
+                                  const tag = allTags.find(
+                                    (t) => t.id === tagId
+                                  );
+                                  // 중요 태그는 뱃지로 표시하지 않음
+                                  if (!tag || tag.is_important) return null;
+                                  return (
+                                    <span
+                                      key={tagId}
+                                      className="px-2 py-0.5 rounded-full text-xs font-semibold border flex items-center gap-1 bg-bg border-border text-text"
+                                    >
+                                      <span
+                                        className="inline-block w-2.5 h-2.5 rounded-full mr-1"
+                                        style={{
+                                          backgroundColor: tag.color,
+                                        }}
+                                      />
+                                      {tag.name}
+                                    </span>
+                                  );
+                                })}
+                                {/* 중요 태그가 있으면 별 표시 */}
+                                {importantTag &&
+                                  m.tags?.includes(importantTag.id) && (
+                                    <FiStar
+                                      size={16}
+                                      className="ml-1 text-yellow-400"
+                                      fill="#facc15"
+                                    />
+                                  )}
+                                {(() => {
+                                  const date = new Date(m.updated_at);
+                                  const mm = String(
+                                    date.getMonth() + 1
+                                  ).padStart(2, "0");
+                                  const dd = String(date.getDate()).padStart(
+                                    2,
+                                    "0"
+                                  );
+                                  return `${mm}.${dd}`;
+                                })()}
+                              </div>
+                            </div>
+                          </Link>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                </>
+              )}
+            </div>
+            {/* 모바일: 플로팅 버튼+오버레이 */}
+            <button
+              className="fixed bottom-4 right-4 z-40 w-16 h-16 rounded-full bg-gray-800 text-white shadow-lg shadow-gray-300 flex items-center justify-center text-3xl hover:bg-gray-900 active:scale-95 transition"
+              aria-label="메모 작성"
+              onClick={() => {
+                setTitle("");
+                setBody("");
+                // 기본 태그가 있으면 자동 선택
+                const defaultTag = allTags.find((tag) => tag.is_default);
+                setSelectedTags(defaultTag ? [defaultTag.id] : []);
+                setShowWrite(true);
+              }}
+            >
+              <FiEdit2 />
+            </button>
+            <MemoWritePage
+              open={showWrite}
+              onClose={() => {
+                setShowWrite(false);
+                setTitle("");
+                setBody("");
+                setSelectedTags([]);
+              }}
+              title={title}
+              setTitle={setTitle}
+              body={body}
+              setBody={setBody}
+              selectedTags={selectedTags}
+              setSelectedTags={setSelectedTags}
+              allTags={allTags}
+              onSave={handleSaveAndClose}
+              loading={loading}
+              showTagModal={showTagModal}
+              setShowTagModal={setShowTagModal}
+              addTag={addTagWrapper}
+              setAlertMsg={setAlertMsg}
+            />
           </div>
-          {/* 모바일: 플로팅 버튼+오버레이 */}
-          <button
-            className="fixed bottom-4 right-4 z-40 w-16 h-16 rounded-full bg-gray-800 text-white shadow-lg shadow-gray-300 flex items-center justify-center text-3xl hover:bg-gray-900 active:scale-95 transition"
-            aria-label="메모 작성"
-            onClick={() => {
-              setTitle("");
-              setBody("");
-              // 기본 태그가 있으면 자동 선택
-              const defaultTag = allTags.find((tag) => tag.is_default);
-              setSelectedTags(defaultTag ? [defaultTag.id] : []);
-              setShowWrite(true);
-            }}
-          >
-            <FiEdit2 />
-          </button>
-          <MemoWritePage
-            open={showWrite}
-            onClose={() => {
-              setShowWrite(false);
-              setTitle("");
-              setBody("");
-              setSelectedTags([]);
-            }}
-            title={title}
-            setTitle={setTitle}
-            body={body}
-            setBody={setBody}
-            selectedTags={selectedTags}
-            setSelectedTags={setSelectedTags}
-            allTags={allTags}
-            onSave={handleSaveAndClose}
-            loading={loading}
-            showTagModal={showTagModal}
-            setShowTagModal={setShowTagModal}
-            addTag={addTagWrapper}
-            setAlertMsg={setAlertMsg}
-          />
-        </div>
+        )}
       </div>
       <ConfirmModal
         open={confirmOpen}

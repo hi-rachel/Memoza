@@ -16,6 +16,7 @@ import TagSelector from "@/components/tags/TagSelector";
 import TagCreateModal from "@/components/tags/TagCreateModal";
 import ConfirmModal from "@/components/ui/ConfirmModal";
 import AlertModal from "@/components/ui/AlertModal";
+import Skeleton from "@/components/ui/Skeleton";
 import type { DdayEvent } from "@/types/dday";
 
 export default function DdayWidget() {
@@ -221,9 +222,46 @@ export default function DdayWidget() {
       {/* D-Day 이벤트 슬라이드 */}
       <div className="relative">
         {loading ? (
-          <div className="text-center py-8">
-            <p className="text-gray-500 text-sm">로딩 중...</p>
-          </div>
+          <>
+            <div className="flex items-center justify-between p-4 rounded-md bg-gray-50 min-h-[80px]">
+              <div className="flex items-center gap-3 flex-1">
+                <Skeleton variant="circular" width={16} height={16} />
+                <div className="flex-1 space-y-2">
+                  <Skeleton variant="text" width="60%" height={16} />
+                  <Skeleton variant="text" width="40%" height={12} />
+                  <div className="flex gap-1 mt-1">
+                    <Skeleton
+                      variant="rectangular"
+                      width={50}
+                      height={20}
+                      className="rounded-full"
+                    />
+                  </div>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <Skeleton variant="rectangular" width={60} height={28} />
+              </div>
+            </div>
+
+            {/* 네비게이션 */}
+            <div className="flex items-center justify-between mt-3">
+              <button className="p-2 rounded-full hover:bg-gray-100 transition-colors">
+                <FiChevronLeft size={16} className="text-gray-600" />
+              </button>
+
+              {/* 인디케이터 */}
+              <div className="flex gap-1">
+                <div className="w-2 h-2 rounded-full bg-gray-600" />
+                <div className="w-2 h-2 rounded-full bg-gray-300" />
+                <div className="w-2 h-2 rounded-full bg-gray-300" />
+              </div>
+
+              <button className="p-2 rounded-full hover:bg-gray-100 transition-colors">
+                <FiChevronRight size={16} className="text-gray-600" />
+              </button>
+            </div>
+          </>
         ) : events.length === 0 ? (
           <div className="text-center py-8">
             <p className="text-gray-500 text-sm">D-Day 이벤트를 추가해보세요</p>
@@ -406,10 +444,10 @@ export default function DdayWidget() {
                   tags: [...editingEvent.tags, newId],
                 });
               } else {
-              setNewEvent({
-                ...newEvent,
+                setNewEvent({
+                  ...newEvent,
                   tags: [...newEvent.tags, newId],
-              });
+                });
               }
               setShowTagModal(false);
             }

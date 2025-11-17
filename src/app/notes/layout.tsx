@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useAuthUser } from "@/hooks/useAuthUser";
 import { useRouter } from "next/navigation";
+import Spinner from "@/components/ui/Spinner";
 
 export default function NotesLayout({
   children,
@@ -11,21 +12,29 @@ export default function NotesLayout({
 }) {
   const { user, loading } = useAuthUser();
   const router = useRouter();
+  const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
-    if (!loading && !user) {
+    setMounted(true);
+  }, []);
+
+  useEffect(() => {
+    if (mounted && !loading && !user) {
       router.push("/login");
     }
-  }, [user, loading, router]);
+  }, [mounted, user, loading, router]);
 
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-lg">로딩 중...</div>
-      </div>
-    );
+  // 클라이언트에서 마운트되기 전까지는 아무것도 렌더링하지 않음
+  if (!mounted) {
+    return null;
   }
 
+  // 로딩 중이면 Spinner 표시
+  if (loading) {
+    return <Spinner fullScreen size="lg" />;
+  }
+
+  // 사용자가 없으면 null (리다이렉트는 useEffect에서 처리)
   if (!user) {
     return null;
   }

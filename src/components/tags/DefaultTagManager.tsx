@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useTags } from "@/hooks/useTags";
+import Spinner from "@/components/ui/Spinner";
 
 export function DefaultTagManager() {
   const { tags, updateDefaultTagName, loading } = useTags();
@@ -38,7 +39,7 @@ export function DefaultTagManager() {
   };
 
   if (loading) {
-    return <div>로딩 중...</div>;
+    return <Spinner size="sm" />;
   }
 
   if (!defaultTag) {
