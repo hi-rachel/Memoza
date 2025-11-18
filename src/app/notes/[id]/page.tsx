@@ -171,7 +171,7 @@ export default function MemoDetailPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50">
+      <div className="h-screen bg-gray-50">
         <Spinner fullScreen />
       </div>
     );
@@ -179,16 +179,16 @@ export default function MemoDetailPage() {
 
   if (!memo) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+      <div className="h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-gray-500">메모를 찾을 수 없습니다.</div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="h-screen flex flex-col bg-gray-50 overflow-hidden">
       {/* 헤더 */}
-      <div className="h-[56px] flex items-center px-4 py-2 border-b border-gray-200 bg-white/80 sticky top-0 z-30">
+      <div className="h-[56px] flex items-center px-4 py-2 border-b border-gray-200 bg-white/80 flex-shrink-0">
         <button
           className="p-2 text-gray-400 hover:text-black"
           onClick={() => router.push("/notes")}
@@ -223,7 +223,7 @@ export default function MemoDetailPage() {
       </div>
 
       {/* 태그 선택 */}
-      <div className="bg-white border-b border-gray-200 px-4 py-3">
+      <div className="bg-white border-b border-gray-200 px-4 py-3 flex-shrink-0">
         <div className="flex items-center justify-between">
           <TagSelector
             tags={tags.filter((t) => !t.is_important)}
@@ -278,25 +278,27 @@ export default function MemoDetailPage() {
       />
 
       {/* 메모 내용 */}
-      <div className="p-4">
-        <div className="bg-white rounded-lg border border-gray-200 p-6">
+      <div className="flex-1 flex flex-col p-4 overflow-hidden min-h-0">
+        <div className="bg-white rounded-lg border border-gray-200 p-6 flex-1 flex flex-col overflow-hidden min-h-0">
           <input
             type="text"
             value={memo.title}
             onChange={(e) => handleTitleChange(e.target.value)}
             placeholder="제목을 입력하세요"
-            className="w-full text-2xl font-bold text-gray-900 border-none outline-none mb-4"
+            className="w-full text-2xl font-bold text-gray-900 border-none outline-none mb-4 flex-shrink-0"
           />
 
-          <textarea
-            value={memo.content}
-            onChange={(e) => handleContentChange(e.target.value)}
-            placeholder="메모 내용을 입력하세요..."
-            className="w-full h-96 text-gray-700 border-none outline-none resize-none"
-          />
+          <div className="flex-1 flex flex-col overflow-hidden min-h-0">
+            <textarea
+              value={memo.content}
+              onChange={(e) => handleContentChange(e.target.value)}
+              placeholder="메모 내용을 입력하세요..."
+              className="w-full flex-1 text-gray-700 border-none outline-none resize-none overflow-y-auto min-h-0"
+            />
+          </div>
 
           {memo.tags && memo.tags.length > 0 && (
-            <div className="mt-4 pt-4 border-t border-gray-200">
+            <div className="mt-4 pt-4 border-t border-gray-200 flex-shrink-0">
               <div className="flex flex-wrap gap-2">
                 {getTagNames(memo.tags).map((tagName, index) => (
                   <span
