@@ -17,7 +17,7 @@ import {
   FiChevronLeft,
 } from "react-icons/fi";
 import Header from "@/components/ui/Header";
-import Link from "next/link";
+import { useRouter } from "next/navigation";
 import ConfirmModal from "@/components/ui/ConfirmModal";
 import UserInfoPanel from "@/components/ui/UserInfoPanel";
 import MemoWritePage from "@/components/notes/MemoWritePage";
@@ -27,6 +27,7 @@ import Skeleton from "@/components/ui/Skeleton";
 import type { BasicMemo } from "@/types/memo";
 
 export default function NotesHome() {
+  const router = useRouter();
   const { user } = useAuthUser();
   // 입력 상태 분리
   const [title, setTitle] = useState("");
@@ -696,7 +697,26 @@ export default function NotesHome() {
                         key={m.id}
                         className={`py-3 bg-gray-50 flex justify-between items-center transition w-full rounded-sm p-4 ${
                           itemLoading === m.id ? "opacity-50" : ""
+                        } ${
+                          !selectMode && editId !== m.id ? "cursor-pointer" : ""
                         }`}
+                        onClick={(e) => {
+                          // selectMode나 editId일 때는 클릭 무시
+                          if (selectMode || editId === m.id) {
+                            return;
+                          }
+                          // 체크박스나 다른 버튼 클릭 시에는 무시
+                          if (
+                            (e.target as HTMLElement).closest(
+                              'input[type="checkbox"]'
+                            ) ||
+                            (e.target as HTMLElement).closest("button")
+                          ) {
+                            return;
+                          }
+                          // 명시적으로 라우팅 처리
+                          router.push(`/notes/${m.id}`);
+                        }}
                       >
                         {selectMode && (
                           <input
@@ -761,10 +781,7 @@ export default function NotesHome() {
                             </div>
                           </div>
                         ) : (
-                          <Link
-                            href={`/notes/${m.id}`}
-                            className="flex w-full group cursor-pointer"
-                          >
+                          <div className="flex w-full group">
                             <div className="flex-1 min-w-0">
                               {m.title && (
                                 <div className="font-bold text-lg text-text mb-1 truncate">
@@ -828,7 +845,7 @@ export default function NotesHome() {
                                 })()}
                               </div>
                             </div>
-                          </Link>
+                          </div>
                         )}
                       </li>
                     ))}
