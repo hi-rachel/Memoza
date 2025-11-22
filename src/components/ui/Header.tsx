@@ -20,6 +20,7 @@ export default function Header({
   const [menuOpen, setMenuOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (searchOpen) inputRef.current?.focus();
@@ -50,6 +51,21 @@ export default function Header({
       document.removeEventListener("mousedown", handleClickOutside);
     };
   }, [searchOpen, setSearch]);
+
+  // 메뉴 외부 클릭 시 닫기
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setMenuOpen(false);
+      }
+    }
+    if (menuOpen) {
+      document.addEventListener("mousedown", handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, [menuOpen]);
 
   return (
     <header className="w-full flex items-center justify-between px-4 py-2 border-b border-gray-200 bg-white/80 backdrop-blur-md sticky top-0 z-30 h-[56px]">
@@ -106,7 +122,7 @@ export default function Header({
                 >
                   <FiSearch size={22} />
                 </button>
-                <div className="relative">
+                <div className="relative" ref={menuRef}>
                   <button
                     aria-label="더보기"
                     className="p-2 text-gray-400 hover:text-gray-700"
@@ -125,7 +141,6 @@ export default function Header({
                       >
                         {selectMode ? "선택 해제" : "메모 선택"}
                       </button>
-                      {/* 추후: 설정, 도움말 등 추가 가능 */}
                     </div>
                   )}
                 </div>
