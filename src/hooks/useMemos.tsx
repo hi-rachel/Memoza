@@ -1,14 +1,10 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { useAuthUser } from "./useAuthUser";
 import type { BasicMemo, Memo, MemosByTagResult } from "@/types/memo";
-import {
-  extractKeywords,
-  detectLanguage,
-  analyzeSentiment,
-} from "@/lib/memoUtils";
+import { encrypt, decryptBatch, decrypt } from "@/lib/encryption-client";
 
 type MemoLite = BasicMemo & { tag_names?: string[] };
 
@@ -17,7 +13,7 @@ export function useMemos() {
   const [loading, setLoading] = useState(true);
   const { user } = useAuthUser();
 
-  const fetchMemos = async () => {
+  const fetchMemos = useCallback(async () => {
     if (!user) return;
 
     const supabase = createClient();
@@ -32,13 +28,44 @@ export function useMemos() {
       return;
     }
 
-    setMemos(data || []);
+    const memosData = data || [];
+
+    if (memosData.length === 0) {
+      setMemos([]);
+    } else {
+      try {
+        const titles = memosData.map((m) => m.title || "");
+        const contents = memosData.map((m) => m.content || "");
+
+        const [decryptedTitles, decryptedContents] = await Promise.all([
+          decryptBatch(titles),
+          decryptBatch(contents),
+        ]);
+
+        const decryptedMemos = memosData.map((memo, idx) => ({
+          ...memo,
+          title: decryptedTitles[idx] ?? memo.title ?? "",
+          content: decryptedContents[idx] ?? memo.content ?? "",
+        }));
+
+        setMemos(decryptedMemos);
+      } catch (decryptError) {
+        console.error("메모 배치 복호화 실패, 원본 데이터 사용:", decryptError);
+        setMemos(
+          memosData.map((memo) => ({
+            ...memo,
+            title: memo.title || "",
+            content: memo.content || "",
+          }))
+        );
+      }
+    }
     setLoading(false);
-  };
+  }, [user]);
 
   useEffect(() => {
     fetchMemos();
-  }, [user]);
+  }, [fetchMemos]);
 
   const createMemo = async (memoData: {
     title: string;
@@ -51,12 +78,19 @@ export function useMemos() {
 
     const supabase = createClient();
 
-    // AI 관련 필드 자동 생성
-    const keywords = extractKeywords(`${memoData.title} ${memoData.content}`);
-    const language = detectLanguage(`${memoData.title} ${memoData.content}`);
-    const sentiment = analyzeSentiment(`${memoData.title} ${memoData.content}`);
-    const searchableText =
-      `${memoData.title} ${memoData.content}`.toLowerCase();
+    // 암호화 처리
+    let encryptedTitle: string;
+    let encryptedContent: string;
+
+    try {
+      encryptedTitle = memoData.title ? await encrypt(memoData.title) : "";
+      encryptedContent = memoData.content
+        ? await encrypt(memoData.content)
+        : "";
+    } catch (encryptError) {
+      console.error("메모 생성 시 암호화 실패:", encryptError);
+      return { error: "암호화에 실패했습니다." };
+    }
 
     // 태그가 없으면 빈 배열로 설정 (트리거가 기본 태그를 자동 할당)
     const tags = memoData.tags || [];
@@ -66,15 +100,11 @@ export function useMemos() {
       .insert([
         {
           user_id: user.id,
-          title: memoData.title,
-          content: memoData.content,
+          title: encryptedTitle,
+          content: encryptedContent,
           tags: tags, // 빈 배열이면 트리거가 기본 태그 자동 할당
           category: memoData.category,
           priority: memoData.priority,
-          keywords,
-          language,
-          sentiment,
-          searchable_text: searchableText,
         },
       ])
       .select()
@@ -85,8 +115,15 @@ export function useMemos() {
       return { error };
     }
 
-    setMemos((prev) => [data, ...prev]);
-    return { data };
+    // 복호화된 데이터로 상태 업데이트
+    const decryptedData = {
+      ...data,
+      title: memoData.title,
+      content: memoData.content,
+    };
+
+    setMemos((prev) => [decryptedData, ...prev]);
+    return { data: decryptedData };
   };
 
   const updateMemo = async (id: string, updates: Partial<Memo>) => {
@@ -94,23 +131,28 @@ export function useMemos() {
 
     const supabase = createClient();
 
-    // 텍스트가 변경된 경우 AI 관련 필드 재계산
-    const processedUpdates = { ...updates };
+    // 텍스트가 변경된 경우 AI 관련 필드 재계산 및 암호화
+    const processedUpdates: Partial<Memo> = { ...updates };
     if (updates.title || updates.content) {
       const currentMemo = memos.find((m) => m.id === id);
       if (currentMemo) {
         const newTitle = updates.title || currentMemo.title;
         const newContent = updates.content || currentMemo.content;
 
-        processedUpdates.keywords = extractKeywords(
-          `${newTitle} ${newContent}`
-        );
-        processedUpdates.language = detectLanguage(`${newTitle} ${newContent}`);
-        processedUpdates.sentiment = analyzeSentiment(
-          `${newTitle} ${newContent}`
-        );
-        processedUpdates.searchable_text =
-          `${newTitle} ${newContent}`.toLowerCase();
+        // 암호화 처리
+        try {
+          if (updates.title !== undefined) {
+            processedUpdates.title = newTitle ? await encrypt(newTitle) : "";
+          }
+          if (updates.content !== undefined) {
+            processedUpdates.content = newContent
+              ? await encrypt(newContent)
+              : "";
+          }
+        } catch (encryptError) {
+          console.error("메모 업데이트 시 암호화 실패:", encryptError);
+          return { error: "암호화에 실패했습니다." };
+        }
       }
     }
 
@@ -127,8 +169,27 @@ export function useMemos() {
       return { error };
     }
 
-    setMemos((prev) => prev.map((memo) => (memo.id === id ? data : memo)));
-    return { data };
+    // 복호화된 데이터로 상태 업데이트
+    const decryptedData = {
+      ...data,
+      title:
+        updates.title !== undefined
+          ? updates.title
+          : data.title
+          ? await decrypt(data.title)
+          : data.title,
+      content:
+        updates.content !== undefined
+          ? updates.content
+          : data.content
+          ? await decrypt(data.content)
+          : data.content,
+    };
+
+    setMemos((prev) =>
+      prev.map((memo) => (memo.id === id ? decryptedData : memo))
+    );
+    return { data: decryptedData };
   };
 
   const deleteMemo = async (id: string) => {
@@ -165,7 +226,9 @@ export function useMemos() {
     const supabase = createClient();
     const { data, error } = await supabase
       .from("memos")
-      .select("*")
+      .select(
+        "id,title,content,tags,is_starred,created_at,updated_at,keywords,language,sentiment,searchable_text"
+      )
       .eq("user_id", user.id)
       .or(
         `title.ilike.%${query}%,content.ilike.%${query}%,searchable_text.ilike.%${query}%`
@@ -177,7 +240,41 @@ export function useMemos() {
       return { error };
     }
 
-    return { data };
+    const memosData = data || [];
+
+    if (memosData.length === 0) {
+      return { data: [] };
+    }
+
+    try {
+      const titles = memosData.map((m) => m.title || "");
+      const contents = memosData.map((m) => m.content || "");
+
+      const [decryptedTitles, decryptedContents] = await Promise.all([
+        decryptBatch(titles),
+        decryptBatch(contents),
+      ]);
+
+      const decryptedData = memosData.map((memo, idx) => ({
+        ...memo,
+        title: decryptedTitles[idx] ?? memo.title ?? "",
+        content: decryptedContents[idx] ?? memo.content ?? "",
+      }));
+
+      return { data: decryptedData };
+    } catch (decryptError) {
+      console.error(
+        "메모 검색 배치 복호화 실패, 원본 데이터 사용:",
+        decryptError
+      );
+      return {
+        data: memosData.map((memo) => ({
+          ...memo,
+          title: memo.title || "",
+          content: memo.content || "",
+        })),
+      };
+    }
   };
 
   // 태그별 메모 검색

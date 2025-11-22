@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/client";
 import { useAuthUser } from "./useAuthUser";
 import { sortTags } from "@/lib/tagDisplay";
 import type { Tag } from "@/types/memo";
+import { encrypt, decryptBatch, decrypt } from "@/lib/encryption-client";
 
 export function useTags() {
   const [tags, setTags] = useState<Tag[]>([]);
@@ -17,7 +18,9 @@ export function useTags() {
     const supabase = createClient();
     const { data, error } = await supabase
       .from("tags")
-      .select("*")
+      .select(
+        "id,name,color,created_at,updated_at,is_default,is_deletable,is_important"
+      )
       .eq("user_id", user.id)
       .order("is_default", { ascending: false }) // 기본 태그를 먼저 표시
       .order("created_at", { ascending: true });
@@ -27,8 +30,29 @@ export function useTags() {
       return;
     }
 
-    // 클라이언트 측에서도 정렬하여 일관성 유지
-    setTags(sortTags(data || []));
+    const tagsData = data || [];
+
+    if (tagsData.length === 0) {
+      setTags([]);
+      setLoading(false);
+      return;
+    }
+
+    try {
+      const encryptedNames = tagsData.map((t) => t.name || "");
+      const decryptedNames = await decryptBatch(encryptedNames);
+
+      const decryptedTags: Tag[] = tagsData.map((tag, idx) => ({
+        ...(tag as Tag),
+        name: decryptedNames[idx] ?? tag.name ?? "",
+      }));
+
+      // 클라이언트 측에서도 정렬하여 일관성 유지
+      setTags(sortTags(decryptedTags));
+    } catch (decryptError) {
+      console.error("태그 이름 복호화 실패, 원본 데이터 사용:", decryptError);
+      setTags(sortTags(tagsData as Tag[]));
+    }
     setLoading(false);
   };
 
@@ -39,20 +63,31 @@ export function useTags() {
   const createTag = async (name: string, color: string = "#2EE6D6") => {
     if (!user) return { error: "사용자가 로그인되지 않았습니다." };
 
+    // 태그 이름 암호화
+    let encryptedName: string;
+    try {
+      encryptedName = name ? await encrypt(name) : "";
+    } catch (encryptError) {
+      console.error("태그 이름 암호화 실패:", encryptError);
+      return { error: "태그 이름 암호화에 실패했습니다." };
+    }
+
     const supabase = createClient();
     const { data, error } = await supabase
       .from("tags")
       .insert([
         {
           user_id: user.id,
-          name,
+          name: encryptedName,
           color,
           is_default: false,
           is_important: false,
           is_deletable: true,
         },
       ])
-      .select()
+      .select(
+        "id,name,color,created_at,updated_at,is_default,is_deletable,is_important"
+      )
       .single();
 
     if (error) {
@@ -60,8 +95,14 @@ export function useTags() {
       return { error };
     }
 
-    setTags((prev) => sortTags([...prev, data]));
-    return { data };
+    // 상태에는 복호화된 이름으로 저장
+    const decryptedTag: Tag = {
+      ...(data as Tag),
+      name,
+    };
+
+    setTags((prev) => sortTags([...prev, decryptedTag]));
+    return { data: decryptedTag };
   };
 
   const updateTag = async (id: string, updates: Partial<Tag>) => {
@@ -83,12 +124,26 @@ export function useTags() {
     }
 
     const supabase = createClient();
+
+    // 이름이 변경되는 경우 암호화해서 업데이트
+    const processedUpdates: Partial<Tag> = { ...updates };
+    if (updates.name !== undefined) {
+      try {
+        processedUpdates.name = updates.name ? await encrypt(updates.name) : "";
+      } catch (encryptError) {
+        console.error("태그 이름 암호화 실패:", encryptError);
+        return { error: "태그 이름 암호화에 실패했습니다." };
+      }
+    }
+
     const { data, error } = await supabase
       .from("tags")
-      .update(updates)
+      .update(processedUpdates)
       .eq("id", id)
       .eq("user_id", user.id)
-      .select()
+      .select(
+        "id,name,color,created_at,updated_at,is_default,is_deletable,is_important"
+      )
       .single();
 
     if (error) {
@@ -96,10 +151,21 @@ export function useTags() {
       return { error };
     }
 
+    // 상태에는 복호화된 이름으로 저장
+    const decryptedTag: Tag = {
+      ...(data as Tag),
+      name:
+        updates.name !== undefined
+          ? updates.name
+          : data.name
+          ? await decrypt(data.name)
+          : data.name,
+    };
+
     setTags((prev) =>
-      sortTags(prev.map((tag) => (tag.id === id ? data : tag)))
+      sortTags(prev.map((tag) => (tag.id === id ? decryptedTag : tag)))
     );
-    return { data };
+    return { data: decryptedTag };
   };
 
   const deleteTag = async (id: string) => {
@@ -156,7 +222,9 @@ export function useTags() {
     const supabase = createClient();
     const { data, error } = await supabase
       .from("tags")
-      .select("*")
+      .select(
+        "id,name,color,created_at,updated_at,is_default,is_deletable,is_important"
+      )
       .eq("user_id", user.id)
       .eq("is_important", true)
       .single();
@@ -166,7 +234,13 @@ export function useTags() {
       return { error };
     }
 
-    return { data };
+    // 호출자에게는 복호화된 이름으로 전달
+    const decryptedTag: Tag = {
+      ...(data as Tag),
+      name: data.name ? await decrypt(data.name) : "",
+    };
+
+    return { data: decryptedTag };
   };
 
   // 중요 태그 생성 (없는 경우)
@@ -180,19 +254,30 @@ export function useTags() {
 
     // 중요 태그가 없으면 생성
     const supabase = createClient();
+
+    let encryptedName: string;
+    try {
+      encryptedName = await encrypt("중요");
+    } catch (encryptError) {
+      console.error("중요 태그 이름 암호화 실패:", encryptError);
+      return { error: "중요 태그 이름 암호화에 실패했습니다." };
+    }
+
     const { data, error } = await supabase
       .from("tags")
       .insert([
         {
           user_id: user.id,
-          name: "중요",
+          name: encryptedName,
           color: "#facc15",
           is_default: false,
           is_important: true,
           is_deletable: false,
         },
       ])
-      .select()
+      .select(
+        "id,name,color,created_at,updated_at,is_default,is_deletable,is_important"
+      )
       .single();
 
     if (error) {
@@ -200,8 +285,13 @@ export function useTags() {
       return { error };
     }
 
-    setTags((prev) => sortTags([...prev, data]));
-    return { data };
+    const decryptedTag: Tag = {
+      ...(data as Tag),
+      name: "중요",
+    };
+
+    setTags((prev) => sortTags([...prev, decryptedTag]));
+    return { data: decryptedTag };
   };
 
   // 기본 태그 이름 변경
@@ -235,18 +325,29 @@ export function useTags() {
 
     // 기본 태그가 없으면 생성
     const supabase = createClient();
+
+    let encryptedName: string;
+    try {
+      encryptedName = await encrypt("스크랩");
+    } catch (encryptError) {
+      console.error("기본 태그 이름 암호화 실패:", encryptError);
+      return { error: "기본 태그 이름 암호화에 실패했습니다." };
+    }
+
     const { data, error } = await supabase
       .from("tags")
       .insert([
         {
           user_id: user.id,
-          name: "스크랩",
+          name: encryptedName,
           color: "#2EE6D6",
           is_default: true,
           is_deletable: false,
         },
       ])
-      .select()
+      .select(
+        "id,name,color,created_at,updated_at,is_default,is_deletable,is_important"
+      )
       .single();
 
     if (error) {
@@ -254,8 +355,13 @@ export function useTags() {
       return { error };
     }
 
-    setTags((prev) => sortTags([...prev, data]));
-    return { data };
+    const decryptedTag: Tag = {
+      ...(data as Tag),
+      name: "스크랩",
+    };
+
+    setTags((prev) => sortTags([...prev, decryptedTag]));
+    return { data: decryptedTag };
   };
 
   return {
