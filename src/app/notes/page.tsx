@@ -1,9 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { createClient } from "@/lib/supabase/client";
 import { useAuthUser } from "@/hooks/useAuthUser";
 import { useTags } from "@/hooks/useTags";
+import { useMemos } from "@/hooks/useMemos";
 import TagSelector from "@/components/tags/TagSelector";
 import { getDisplayTags, sortTags } from "@/lib/tagDisplay";
 import TagCreateModal from "@/components/tags/TagCreateModal";
@@ -24,16 +24,21 @@ import MemoWritePage from "@/components/notes/MemoWritePage";
 import AlertModal from "@/components/ui/AlertModal";
 import DdayWidget from "@/components/ui/DdayWidget";
 import Skeleton from "@/components/ui/Skeleton";
-import type { BasicMemo } from "@/types/memo";
 
 export default function NotesHome() {
   const { user } = useAuthUser();
+  const {
+    memos,
+    loading: memosLoading,
+    createMemo,
+    updateMemo,
+    deleteMemo,
+  } = useMemos();
   // 입력 상태 분리
   const [title, setTitle] = useState("");
   const [body, setBody] = useState("");
-  const [memos, setMemos] = useState<BasicMemo[]>([]);
   const [error, setError] = useState("");
-  const [loading, setLoading] = useState(true); // 초기 로딩 상태를 true로 변경
+  const [loading, setLoading] = useState(false);
   const [mounted, setMounted] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
   // 수정 상태 분리
@@ -56,31 +61,6 @@ export default function NotesHome() {
   // 커스텀 alert 상태
   const [alertMsg, setAlertMsg] = useState("");
 
-  // Supabase에서 메모 불러오기
-  const fetchMemos = async () => {
-    if (!user) return;
-    setLoading(true);
-    setError("");
-    try {
-      const supabase = createClient();
-      const { data, error } = await supabase
-        .from("memos")
-        .select("*")
-        .eq("user_id", user.id)
-        .order("created_at", { ascending: false });
-
-      if (error) {
-        console.error("메모 가져오기 오류:", error);
-        setMemos([]);
-      } else {
-        setMemos(data || []);
-      }
-    } catch {
-      setError("메모 불러오기 실패");
-    }
-    setLoading(false);
-  };
-
   // 저장
   const handleSave = async (tags?: string[]) => {
     if (!user) {
@@ -100,21 +80,39 @@ export default function NotesHome() {
         }
       }
 
-      const supabase = createClient();
-      await supabase.from("memos").insert([
-        {
-          user_id: user.id,
-          title,
-          content: body,
-          tags: tagsToSave,
-        },
-      ]);
+      const { error } = await createMemo({
+        title,
+        content: body,
+        tags: tagsToSave,
+      });
+
+      if (error) {
+        console.error("메모 저장 오류:", error);
+        if (typeof error === "string") {
+          setError(error);
+        } else if (
+          typeof error === "object" &&
+          error !== null &&
+          "message" in error &&
+          typeof (error as { message?: unknown }).message === "string"
+        ) {
+          setError("저장 실패: " + (error as { message: string }).message);
+        } else {
+          setError("저장 실패");
+        }
+        setLoading(false);
+        return;
+      }
+
       setTitle("");
       setBody("");
       setSelectedTags([]);
-      await fetchMemos();
-    } catch {
-      setError("저장 실패");
+    } catch (error) {
+      console.error("저장 중 오류:", error);
+      setError(
+        "저장 실패: " +
+          (error instanceof Error ? error.message : "알 수 없는 오류")
+      );
     }
     setLoading(false);
   };
@@ -129,14 +127,24 @@ export default function NotesHome() {
     setItemLoading(id);
     setError("");
     try {
-      const supabase = createClient();
-      await supabase
-        .from("memos")
-        .delete()
-        .eq("id", id)
-        .eq("user_id", user?.id);
-      await fetchMemos();
-    } catch {
+      const { error } = await deleteMemo(id);
+      if (error) {
+        console.error("메모 삭제 오류:", error);
+        if (typeof error === "string") {
+          setError(error);
+        } else if (
+          typeof error === "object" &&
+          error !== null &&
+          "message" in error &&
+          typeof (error as { message?: unknown }).message === "string"
+        ) {
+          setError("삭제 실패: " + (error as { message: string }).message);
+        } else {
+          setError("삭제 실패");
+        }
+      }
+    } catch (err) {
+      console.error("삭제 중 오류:", err);
       setError("삭제 실패");
     }
     setItemLoading(null);
@@ -156,22 +164,39 @@ export default function NotesHome() {
     setItemLoading(editId);
     setError("");
     try {
-      const supabase = createClient();
-      await supabase
-        .from("memos")
-        .update({
-          title: editTitle,
-          content: editBody,
-          tags: selectedTags,
-        })
-        .eq("id", editId)
-        .eq("user_id", user.id);
+      const { error } = await updateMemo(editId, {
+        title: editTitle,
+        content: editBody,
+        tags: selectedTags,
+      });
+
+      if (error) {
+        console.error("메모 수정 오류:", error);
+        if (typeof error === "string") {
+          setError(error);
+        } else if (
+          typeof error === "object" &&
+          error !== null &&
+          "message" in error &&
+          typeof (error as { message?: unknown }).message === "string"
+        ) {
+          setError("수정 실패: " + (error as { message: string }).message);
+        } else {
+          setError("수정 실패");
+        }
+        setItemLoading(null);
+        return;
+      }
+
       setEditId(null);
       setEditTitle("");
       setEditBody("");
-      await fetchMemos();
-    } catch {
-      setError("수정 실패");
+    } catch (error) {
+      console.error("수정 중 오류:", error);
+      setError(
+        "수정 실패: " +
+          (error instanceof Error ? error.message : "알 수 없는 오류")
+      );
     }
     setItemLoading(null);
   };
@@ -180,9 +205,18 @@ export default function NotesHome() {
     setMounted(true);
   }, []);
 
+  // editId가 설정될 때 해당 메모의 데이터를 editTitle과 editBody에 설정
   useEffect(() => {
-    if (user && mounted) fetchMemos();
-  }, [user, mounted]);
+    if (editId) {
+      const memoToEdit = memos.find((m) => m.id === editId);
+      if (memoToEdit) {
+        // 이미 복호화된 데이터 사용
+        setEditTitle(memoToEdit.title || "");
+        setEditBody(memoToEdit.content || "");
+        setSelectedTags(memoToEdit.tags || []);
+      }
+    }
+  }, [editId, memos]);
 
   const {
     tags: allTags,
@@ -625,7 +659,7 @@ export default function NotesHome() {
             )}
             {/* 메모 목록: 전체 화면 넓게 */}
             <div className="flex-1 w-full max-w-5xl mx-auto overflow-y-auto p-0 mt-2 custom-scrollbar">
-              {loading ? (
+              {loading || memosLoading ? (
                 <ul className="space-y-3 w-full">
                   {[...Array(3)].map((_, index) => (
                     <li
@@ -675,9 +709,6 @@ export default function NotesHome() {
                         className="px-3 py-1 rounded bg-white text-gray-800 border border-gray-200 text-sm font-semibold hover:bg-gray-100 transition disabled:opacity-50"
                         disabled={selectedMemoIds.length === 0}
                         onClick={async () => {
-                          setMemos((prev) =>
-                            prev.filter((m) => !selectedMemoIds.includes(m.id!))
-                          );
                           const idsToDelete = [...selectedMemoIds];
                           setSelectedMemoIds([]);
                           await Promise.all(
@@ -890,22 +921,26 @@ export default function NotesHome() {
         }}
         onConfirm={async () => {
           if (pendingDeleteTagId) {
-            // 1. 해당 태그가 달린 모든 메모 삭제
+            // 1. 해당 태그가 달린 모든 메모를 DB와 로컬 상태에서 함께 삭제
             const relatedMemos = memos.filter((m) =>
               m.tags?.includes(pendingDeleteTagId)
             );
-            for (const memo of relatedMemos) {
-              if (memo.id) {
-                const supabase = createClient();
-                await supabase
-                  .from("memos")
-                  .delete()
-                  .eq("id", memo.id)
-                  .eq("user_id", user?.id);
+
+            if (relatedMemos.length > 0) {
+              for (const memo of relatedMemos) {
+                if (memo.id) {
+                  await deleteMemo(memo.id);
+                }
               }
             }
+
             // 2. 태그 자체 삭제
             await deleteTag(pendingDeleteTagId);
+
+            // 3. 현재 필터가 삭제된 태그라면 전체로 리셋
+            setFilterTag((current) =>
+              current === pendingDeleteTagId ? "all" : current
+            );
           }
           setConfirmOpen(false);
           setPendingDeleteTagId(null);

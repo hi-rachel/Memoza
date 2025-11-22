@@ -7,6 +7,7 @@ import { createClient } from "@/lib/supabase/client";
 import { useAuthUser } from "@/hooks/useAuthUser";
 import { useTags } from "@/hooks/useTags";
 import type { BasicMemo } from "@/types/memo";
+import { encrypt, decrypt } from "@/lib/encryption-client";
 import TagSelector from "@/components/tags/TagSelector";
 import TagCreateModal from "@/components/tags/TagCreateModal";
 import AlertModal from "@/components/ui/AlertModal";
@@ -57,7 +58,31 @@ export default function MemoDetailPage() {
         return;
       }
 
-      setMemo(data);
+      // 복호화 처리
+      try {
+        const decryptedTitle = data.title
+          ? await decrypt(data.title)
+          : data.title || "";
+        const decryptedContent = data.content
+          ? await decrypt(data.content)
+          : data.content || "";
+
+        const decryptedMemo = {
+          ...data,
+          title: decryptedTitle,
+          content: decryptedContent,
+        };
+
+        setMemo(decryptedMemo);
+      } catch (error) {
+        console.error(`메모 ${memoId} 복호화 실패:`, error);
+        // 복호화 실패 시 원본 반환 (decrypt 함수가 이미 원본을 반환하도록 수정됨)
+        setMemo({
+          ...data,
+          title: data.title || "",
+          content: data.content || "",
+        });
+      }
       setLoading(false);
     };
 
@@ -68,19 +93,53 @@ export default function MemoDetailPage() {
     if (!user || !memo) return;
 
     setSaving(true);
-    const supabase = createClient();
-    const { error } = await supabase
-      .from("memos")
-      .update(updates)
-      .eq("id", memo.id)
-      .eq("user_id", user.id);
 
-    if (error) {
-      console.error("메모 저장 오류:", error);
-    } else {
-      setMemo((prev) => (prev ? { ...prev, ...updates } : null));
+    try {
+      // 암호화 처리 (title과 content만)
+      const encryptedUpdates: Partial<BasicMemo> = { ...updates };
+
+      if (updates.title !== undefined) {
+        try {
+          encryptedUpdates.title = updates.title
+            ? await encrypt(updates.title)
+            : "";
+        } catch (encryptError) {
+          console.error("제목 암호화 실패:", encryptError);
+          setSaving(false);
+          return;
+        }
+      }
+
+      if (updates.content !== undefined) {
+        try {
+          encryptedUpdates.content = updates.content
+            ? await encrypt(updates.content)
+            : "";
+        } catch (encryptError) {
+          console.error("본문 암호화 실패:", encryptError);
+          setSaving(false);
+          return;
+        }
+      }
+
+      const supabase = createClient();
+      const { error } = await supabase
+        .from("memos")
+        .update(encryptedUpdates)
+        .eq("id", memo.id)
+        .eq("user_id", user.id);
+
+      if (error) {
+        console.error("메모 저장 오류:", error);
+      } else {
+        // 로컬 상태는 평문으로 유지 (복호화된 상태)
+        setMemo((prev) => (prev ? { ...prev, ...updates } : null));
+      }
+    } catch (error) {
+      console.error("저장 중 오류:", error);
+    } finally {
+      setSaving(false);
     }
-    setSaving(false);
   };
 
   const handleAutoSave = (updates: Partial<BasicMemo>) => {
